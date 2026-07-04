@@ -36,6 +36,9 @@ const PER_TERM_CADENCES = [
   { source: 'stackoverflow', cadenceMinutes: 1440 }, // 86400s
   { source: 'reddit', cadenceMinutes: 10 }, // 600s
   { source: 'x', cadenceMinutes: 60 }, // 3600s, kept coarse to respect the read budget
+  // YouTube search costs 100 quota units against a 10k/day default quota =
+  // ~100 searches/day total. Twice daily per term keeps headroom to ~50 terms.
+  { source: 'youtube', cadenceMinutes: 720 },
 ] as const satisfies ReadonlyArray<{ source: Source; cadenceMinutes: number }>;
 
 /** Cron ticks are nominally 60s apart but jitter a little; without slack a

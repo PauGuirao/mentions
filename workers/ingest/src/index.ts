@@ -51,6 +51,8 @@ function adapterAuth(source: Source, env: Env): string | undefined {
         : undefined;
     case 'x':
       return env.X_BEARER_TOKEN;
+    case 'youtube':
+      return env.YOUTUBE_API_KEY;
     default:
       return undefined;
   }

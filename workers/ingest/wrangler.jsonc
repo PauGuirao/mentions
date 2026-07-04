@@ -17,6 +17,8 @@
   //   (adapter defers until both exist).
   // - X_BEARER_TOKEN: enables x polling (adapter defers until set; reads are
   //   additionally capped by the X_MONTHLY_READ_CAP budget var).
+  // - YOUTUBE_API_KEY: enables youtube polling (adapter defers until set;
+  //   search costs 100 quota units/call against the key's 10k/day quota).
   "queues": {
     // Queue names must match QUEUES in packages/core/src/pipeline.ts.
     "producers": [{ "binding": "RAW_ITEMS", "queue": "mentions-raw-items" }],
