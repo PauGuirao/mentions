@@ -9,7 +9,16 @@ import { z } from 'zod';
 // Sources
 // ---------------------------------------------------------------------------
 
-export const SOURCES = ['bluesky', 'hackernews', 'github', 'stackoverflow', 'devto'] as const;
+export const SOURCES = [
+  'bluesky',
+  'hackernews',
+  'github',
+  'stackoverflow',
+  'devto',
+  'reddit',
+  'x',
+  'youtube',
+] as const;
 export const sourceSchema = z.enum(SOURCES);
 export type Source = z.infer<typeof sourceSchema>;
 

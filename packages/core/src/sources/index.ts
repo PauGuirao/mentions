@@ -11,14 +11,29 @@ import type { SourceAdapter } from './types';
 import { devtoAdapter } from './devto';
 import { githubAdapter } from './github';
 import { hackernewsAdapter } from './hackernews';
+import { redditAdapter } from './reddit';
 import { stackoverflowAdapter } from './stackoverflow';
+import { xAdapter } from './x';
+import { youtubeAdapter } from './youtube';
 
-export type { SourceAdapter } from './types';
-export { devtoAdapter, githubAdapter, hackernewsAdapter, stackoverflowAdapter };
+export type { BudgetMeter, SourceAdapter } from './types';
+export {
+  devtoAdapter,
+  githubAdapter,
+  hackernewsAdapter,
+  redditAdapter,
+  stackoverflowAdapter,
+  xAdapter,
+  youtubeAdapter,
+};
+export { createMonthlyReadMeter, X_DEFAULT_MONTHLY_READ_CAP } from './x';
 
 export const SOURCE_ADAPTERS: Partial<Record<Source, SourceAdapter>> = {
   hackernews: hackernewsAdapter,
   github: githubAdapter,
   stackoverflow: stackoverflowAdapter,
   devto: devtoAdapter,
+  reddit: redditAdapter,
+  x: xAdapter,
+  youtube: youtubeAdapter,
 };
