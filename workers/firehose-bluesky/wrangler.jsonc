@@ -14,8 +14,6 @@
   "triggers": { "crons": ["0 * * * *"] },
   "vars": {
     // Placeholder for local dev only — set the real value with
-    // `wrangler secret put ADMIN_SECRET` (secrets override vars).
-    "ADMIN_SECRET": "dev-placeholder"
   },
   "observability": { "enabled": true }
 }

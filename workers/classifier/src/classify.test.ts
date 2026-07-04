@@ -88,11 +88,22 @@ describe('extractResponseText', () => {
     expect(extractResponseText('hi')).toBe('hi');
   });
 
+  it('reads OpenAI-style chat.completion envelopes', () => {
+    expect(
+      extractResponseText({
+        choices: [{ finish_reason: 'stop', index: 0, message: { role: 'assistant', content: '{"relevance": 10}' } }],
+        object: 'chat.completion',
+      }),
+    ).toBe('{"relevance": 10}');
+  });
+
   it('returns null for streams, nulls and odd shapes', () => {
     expect(extractResponseText(null)).toBeNull();
     expect(extractResponseText(undefined)).toBeNull();
     expect(extractResponseText({ response: 42 })).toBeNull();
     expect(extractResponseText({ tool_calls: [] })).toBeNull();
+    expect(extractResponseText({ choices: [] })).toBeNull();
+    expect(extractResponseText({ choices: [{ message: { content: null } }] })).toBeNull();
   });
 });
 

@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "d1_databases": [
-    { "binding": "DB", "database_name": "mentions", "database_id": "TBD-LOCAL" }
+    { "binding": "DB", "database_name": "mentions", "database_id": "d7544f01-aeb7-4d49-903e-821cf0244f64" }
   ],
   // Optional secret (set via `wrangler secret put GITHUB_TOKEN`): raises the
   // GitHub search rate limit from 10 to 30 req/min.

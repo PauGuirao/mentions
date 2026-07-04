@@ -92,15 +92,34 @@ export function buildJsonRetryMessages(args: {
 
 /**
  * Extract the assistant text out of whatever shape env.AI.run returned.
- * Text-generation models return { response?: string }; anything else
- * (streams, tool calls, unexpected shapes) yields null.
+ * Text-generation models return either the legacy { response?: string } or an
+ * OpenAI-compatible chat.completion envelope with the text at
+ * choices[0].message.content; anything else (streams, tool calls, unexpected
+ * shapes) yields null.
  */
 export function extractResponseText(output: unknown): string | null {
   if (typeof output === 'string') return output;
-  if (output !== null && typeof output === 'object' && 'response' in output) {
+  if (output === null || typeof output !== 'object') return null;
+
+  if ('response' in output) {
     const response = (output as { response?: unknown }).response;
     if (typeof response === 'string') return response;
   }
+
+  if ('choices' in output) {
+    const choices = (output as { choices?: unknown }).choices;
+    if (Array.isArray(choices) && choices.length > 0) {
+      const first: unknown = choices[0];
+      if (first !== null && typeof first === 'object' && 'message' in first) {
+        const message = (first as { message?: unknown }).message;
+        if (message !== null && typeof message === 'object' && 'content' in message) {
+          const content = (message as { content?: unknown }).content;
+          if (typeof content === 'string') return content;
+        }
+      }
+    }
+  }
+
   return null;
 }
 

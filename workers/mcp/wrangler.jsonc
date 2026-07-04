@@ -8,14 +8,14 @@
     {
       "binding": "DB",
       "database_name": "mentions",
-      "database_id": "TBD-LOCAL"
+      "database_id": "d7544f01-aeb7-4d49-903e-821cf0244f64"
     }
   ],
   // API-key verification cache (verifyApiKey's kv arg).
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "TBD-LOCAL"
+      "id": "563524d26a444c0ca62c88b9616065c6"
     }
   ]
 }

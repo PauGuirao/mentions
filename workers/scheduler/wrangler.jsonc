@@ -8,9 +8,9 @@
   // Every-minute tick; the worker decides per source/term what is actually due.
   "triggers": { "crons": ["* * * * *"] },
   "d1_databases": [
-    { "binding": "DB", "database_name": "mentions", "database_id": "TBD-LOCAL" }
+    { "binding": "DB", "database_name": "mentions", "database_id": "d7544f01-aeb7-4d49-903e-821cf0244f64" }
   ],
-  "kv_namespaces": [{ "binding": "KV", "id": "TBD-LOCAL" }],
+  "kv_namespaces": [{ "binding": "KV", "id": "563524d26a444c0ca62c88b9616065c6" }],
   "queues": {
     // Queue name must match QUEUES.fetchJobs in packages/core/src/pipeline.ts.
     "producers": [{ "binding": "FETCH_JOBS", "queue": "mentions-fetch-jobs" }]

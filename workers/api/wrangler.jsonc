@@ -9,7 +9,7 @@
       "binding": "DB",
       "database_name": "mentions",
       // Replace with the real id at provision time; local dev ignores it.
-      "database_id": "TBD-LOCAL",
+      "database_id": "d7544f01-aeb7-4d49-903e-821cf0244f64",
       // D1 schema lives in core next to the ops that query it.
       "migrations_dir": "../../packages/core/migrations"
     }
@@ -17,7 +17,7 @@
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "TBD-LOCAL"
+      "id": "563524d26a444c0ca62c88b9616065c6"
     }
   ]
 }
