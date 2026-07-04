@@ -64,20 +64,54 @@ export async function listKeywords(args: { db: D1Database; orgId: string }): Pro
   return results.map(toKeyword);
 }
 
+/** D1 caps bound parameters at 100 per statement; chunk orphan-id deletes
+ *  under that so removing a keyword with many exclusive matches still works. */
+const ORPHAN_DELETE_CHUNK = 90;
+
 export async function deleteKeyword(args: {
   db: D1Database;
   orgId: string;
   keywordId: string;
 }): Promise<boolean> {
   const { db, orgId, keywordId } = args;
-  // mention_matches has a plain FK on keyword_id (no ON DELETE CASCADE), so
-  // the matches must go in the same batch or D1 rejects the keyword delete.
-  const results = await db.batch([
+
+  // A mention is global and reachable only through mention_matches. Once this
+  // keyword's matches are gone, any mention matched by nothing else is
+  // orphaned in the mentions table forever. Collect those ids first (while the
+  // matches still exist to read); a mention still matched by another
+  // keyword/org is excluded and left in place.
+  const { results: orphans } = await db
+    .prepare(
+      `SELECT mm.mention_id AS id FROM mention_matches mm
+       WHERE mm.org_id = ? AND mm.keyword_id = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM mention_matches other
+           WHERE other.mention_id = mm.mention_id
+             AND NOT (other.org_id = ? AND other.keyword_id = ?)
+         )`,
+    )
+    .bind(orgId, keywordId, orgId, keywordId)
+    .all<{ id: string }>();
+
+  // mention_matches carries plain FKs on both keyword_id and mention_id (no ON
+  // DELETE CASCADE), so within the batch the matches must be deleted before
+  // both the keyword and the orphaned mentions, or D1 rejects the parent
+  // delete. If a concurrent match lands on an orphan between the read above and
+  // this batch, the FK makes the mention delete fail and rolls the batch back
+  // (fail closed, no dangling row) — a retry then sees the mention as non-orphan.
+  const statements = [
     db.prepare('DELETE FROM mention_matches WHERE org_id = ? AND keyword_id = ?').bind(orgId, keywordId),
     db.prepare('DELETE FROM keywords WHERE id = ? AND org_id = ?').bind(keywordId, orgId),
-  ]);
-  const keywordDelete = results[1];
-  return (keywordDelete?.meta.changes ?? 0) > 0;
+  ];
+  for (let i = 0; i < orphans.length; i += ORPHAN_DELETE_CHUNK) {
+    const ids = orphans.slice(i, i + ORPHAN_DELETE_CHUNK).map((row) => row.id);
+    const placeholders = ids.map(() => '?').join(', ');
+    statements.push(db.prepare(`DELETE FROM mentions WHERE id IN (${placeholders})`).bind(...ids));
+  }
+
+  const results = await db.batch(statements);
+  // results[1] is the keyword delete; its change count is the existence signal.
+  return (results[1]?.meta.changes ?? 0) > 0;
 }
 
 export async function setKeywordMuted(args: {
