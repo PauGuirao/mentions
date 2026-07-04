@@ -1,0 +1,9 @@
+{
+  "name": "mentions-monorepo",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test"
+  }
+}
