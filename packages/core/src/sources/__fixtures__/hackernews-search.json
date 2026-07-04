@@ -1,0 +1,42 @@
+{
+  "hits": [
+    {
+      "author": "ghost",
+      "created_at": "2026-07-01T10:06:40Z",
+      "created_at_i": 1782900400,
+      "title": "Broken hit with no objectID",
+      "_tags": ["story"]
+    },
+    {
+      "author": "daviddev",
+      "comment_text": "I switched to <a href=\"https:&#x2F;&#x2F;zernio.com\">Zernio<&#x2F;a> last month &amp; it&#x27;s been great.",
+      "created_at": "2026-07-01T10:05:00Z",
+      "created_at_i": 1782900300,
+      "objectID": "44001002",
+      "parent_id": 44001001,
+      "story_id": 44001001,
+      "story_title": "Show HN: Zernio, schedule posts via API",
+      "title": null,
+      "url": null,
+      "_tags": ["comment", "author_daviddev", "story_44001001"]
+    },
+    {
+      "author": "founder123",
+      "comment_text": null,
+      "created_at": "2026-07-01T10:00:00Z",
+      "created_at_i": 1782900000,
+      "objectID": "44001001",
+      "points": 42,
+      "story_text": "<p>We built an API-first scheduler.<&#x2F;p><p>Ask me anything!<&#x2F;p>",
+      "title": "Show HN: Zernio, schedule posts via API",
+      "url": "https://zernio.com",
+      "_tags": ["story", "author_founder123", "story_44001001"]
+    }
+  ],
+  "nbHits": 3,
+  "page": 0,
+  "nbPages": 1,
+  "hitsPerPage": 200,
+  "processingTimeMS": 2,
+  "query": ""
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mentions-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mentions",
+      // Replace with the real id at provision time; local dev ignores it.
+      "database_id": "TBD-LOCAL",
+      // D1 schema lives in core next to the ops that query it.
+      "migrations_dir": "../../packages/core/migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "TBD-LOCAL"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "mentions-firehose-bluesky",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "FIREHOSE", "class_name": "FirehoseConsumer" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FirehoseConsumer"] }],
+  "queues": {
+    "producers": [{ "binding": "RAW_ITEMS", "queue": "mentions-raw-items" }]
+  },
+  // Hourly belt-and-braces: scheduled handler re-starts the firehose DO.
+  "triggers": { "crons": ["0 * * * *"] },
+  "vars": {
+    // Placeholder for local dev only — set the real value with
+    // `wrangler secret put ADMIN_SECRET` (secrets override vars).
+    "ADMIN_SECRET": "dev-placeholder"
+  },
+  "observability": { "enabled": true }
+}

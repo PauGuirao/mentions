@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mentions-ingest",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "mentions", "database_id": "TBD-LOCAL" }
+  ],
+  // Optional secret (set via `wrangler secret put GITHUB_TOKEN`): raises the
+  // GitHub search rate limit from 10 to 30 req/min.
+  "queues": {
+    // Queue names must match QUEUES in packages/core/src/pipeline.ts.
+    "producers": [{ "binding": "RAW_ITEMS", "queue": "mentions-raw-items" }],
+    "consumers": [
+      {
+        "queue": "mentions-fetch-jobs",
+        "max_batch_size": 10,
+        // Higher than the in-code MAX_ATTEMPTS cap so the code's ack+log-loudly
+        // path (not the platform DLQ path) is what governs give-up behavior.
+        "max_retries": 5
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mentions-classifier",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mentions",
+      "database_id": "TBD-LOCAL"
+    }
+  ],
+  "queues": {
+    // Queue names mirror QUEUES in @mentions/core/pipeline (wrangler config
+    // cannot import TS; src/index.ts asserts batch.queue === QUEUES.classify).
+    "consumers": [
+      {
+        "queue": "mentions-classify",
+        "max_batch_size": 10,
+        "max_concurrency": 3,
+        "max_retries": 3
+      }
+    ],
+    "producers": [
+      {
+        "binding": "DELIVER",
+        "queue": "mentions-deliver"
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mentions-scheduler",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Every-minute tick; the worker decides per source/term what is actually due.
+  "triggers": { "crons": ["* * * * *"] },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "mentions", "database_id": "TBD-LOCAL" }
+  ],
+  "kv_namespaces": [{ "binding": "KV", "id": "TBD-LOCAL" }],
+  "queues": {
+    // Queue name must match QUEUES.fetchJobs in packages/core/src/pipeline.ts.
+    "producers": [{ "binding": "FETCH_JOBS", "queue": "mentions-fetch-jobs" }]
+  }
+}

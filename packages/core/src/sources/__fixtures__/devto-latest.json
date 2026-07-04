@@ -1,0 +1,49 @@
+[
+  {
+    "type_of": "article",
+    "id": 2200300,
+    "title": "Automating my content pipeline with Zernio",
+    "description": "How I schedule a week of posts in one sitting.",
+    "published_at": "2026-07-02T07:45:00Z",
+    "published_timestamp": "2026-07-02T07:45:00Z",
+    "url": "https://dev.to/samdev/automating-my-content-pipeline-with-zernio-1abc",
+    "comments_count": 2,
+    "positive_reactions_count": 14,
+    "tag_list": ["automation", "webdev"],
+    "user": {
+      "name": "Sam Dev",
+      "username": "samdev",
+      "twitter_username": null,
+      "github_username": "samdev"
+    }
+  },
+  {
+    "type_of": "article",
+    "id": 2200290,
+    "title": "Social APIs compared",
+    "description": "Zernio vs Buffer vs Typefully.",
+    "published_at": "2026-07-02T06:30:00Z",
+    "published_timestamp": "2026-07-02T06:30:00Z",
+    "url": "https://dev.to/janedoe/social-apis-compared-2def",
+    "comments_count": 0,
+    "positive_reactions_count": 3,
+    "tag_list": "api, social, comparison",
+    "user": { "name": "Jane Doe", "username": "janedoe" }
+  },
+  {
+    "type_of": "article",
+    "id": 2200280,
+    "title": "Old article",
+    "description": "Should be filtered out by the cursor.",
+    "published_at": "2026-06-30T10:00:00Z",
+    "published_timestamp": "2026-06-30T10:00:00Z",
+    "url": "https://dev.to/old/old-article-3ghi",
+    "tag_list": [],
+    "user": { "name": "Old", "username": "old" }
+  },
+  {
+    "id": 2200270,
+    "title": "Malformed item without url",
+    "published_timestamp": "2026-07-02T05:00:00Z"
+  }
+]

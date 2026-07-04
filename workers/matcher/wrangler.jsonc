@@ -1,0 +1,17 @@
+{
+  "name": "mentions-matcher",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "mentions", "database_id": "TBD-LOCAL" }
+  ],
+  "kv_namespaces": [{ "binding": "KV", "id": "TBD-LOCAL" }],
+  "queues": {
+    "consumers": [
+      { "queue": "mentions-raw-items", "max_batch_size": 20, "max_concurrency": 4 }
+    ],
+    "producers": [{ "binding": "CLASSIFY", "queue": "mentions-classify" }]
+  },
+  "observability": { "enabled": true }
+}

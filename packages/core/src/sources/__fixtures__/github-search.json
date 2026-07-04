@@ -1,0 +1,51 @@
+{
+  "total_count": 4,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 3100200399,
+      "number": 99,
+      "title": "Malformed item without html_url",
+      "created_at": "2026-07-02T10:00:00Z"
+    },
+    {
+      "id": 3100200302,
+      "number": 87,
+      "title": "Integrate Zernio API for post scheduling",
+      "state": "open",
+      "created_at": "2026-07-02T08:30:00Z",
+      "updated_at": "2026-07-02T09:00:00Z",
+      "html_url": "https://github.com/acme/social-tool/issues/87",
+      "body": "We should use zernio instead of rolling our own scheduler.",
+      "user": { "login": "octocat", "id": 583231, "html_url": "https://github.com/octocat" },
+      "labels": [],
+      "comments": 3
+    },
+    {
+      "id": 3100200301,
+      "number": 12,
+      "title": "Does anyone use Zernio?",
+      "state": "open",
+      "created_at": "2026-07-01T18:00:00Z",
+      "updated_at": "2026-07-01T18:00:00Z",
+      "html_url": "https://github.com/acme/other/issues/12",
+      "body": null,
+      "user": { "login": "janedoe", "id": 99, "html_url": "https://github.com/janedoe" },
+      "labels": [],
+      "comments": 0
+    },
+    {
+      "id": 3100200300,
+      "number": 5,
+      "title": "Old issue mentioning zernio",
+      "state": "closed",
+      "created_at": "2026-06-20T00:00:00Z",
+      "updated_at": "2026-06-21T00:00:00Z",
+      "html_url": "https://github.com/acme/old/issues/5",
+      "body": "old body",
+      "user": { "login": "olduser", "id": 3, "html_url": "https://github.com/olduser" },
+      "labels": [],
+      "comments": 1
+    }
+  ]
+}

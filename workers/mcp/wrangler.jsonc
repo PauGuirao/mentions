@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mentions-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mentions",
+      "database_id": "TBD-LOCAL"
+    }
+  ],
+  // API-key verification cache (verifyApiKey's kv arg).
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "TBD-LOCAL"
+    }
+  ]
+}

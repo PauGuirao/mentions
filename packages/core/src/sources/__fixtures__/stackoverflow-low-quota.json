@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "owner": { "display_name": "someone", "link": "https://stackoverflow.com/users/1/someone" },
+      "item_type": "question",
+      "score": 0,
+      "creation_date": 1782820000,
+      "question_id": 79600300,
+      "title": "This item must be discarded when quota is low",
+      "excerpt": "quota guard test"
+    }
+  ],
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 4
+}
