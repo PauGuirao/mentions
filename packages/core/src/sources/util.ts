@@ -76,3 +76,15 @@ export function finalizeItems({
   items.sort((a, b) => a.publishedAt - b.publishedAt);
   return items;
 }
+
+/**
+ * Headers every polling adapter sends. A descriptive User-Agent is not
+ * optional politeness: GitHub 403s without one, and dev.to (behind
+ * Cloudflare bot protection) 403s bare Workers subrequests (verified live
+ * 2026-07-04 — bare fetch 403, with UA 200). Always spread these into
+ * adapter fetches and add per-source headers on top.
+ */
+export const ADAPTER_HEADERS: Record<string, string> = {
+  'User-Agent': 'mentions-bot/0.1 (+https://github.com/PauGuirao/mentions)',
+  Accept: 'application/json',
+};

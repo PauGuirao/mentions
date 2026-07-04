@@ -9,7 +9,7 @@
     "test": "pnpm -r --if-present test",
     "dev": "wrangler dev -c workers/api/wrangler.jsonc -c workers/scheduler/wrangler.jsonc -c workers/ingest/wrangler.jsonc -c workers/firehose-bluesky/wrangler.jsonc -c workers/matcher/wrangler.jsonc -c workers/classifier/wrangler.jsonc -c workers/deliverer/wrangler.jsonc",
     "migrate:local": "wrangler d1 migrations apply mentions --local -c workers/api/wrangler.jsonc",
-    "seed": "pnpm --filter mentions-api seed"
+    "seed": "pnpm --filter @mentions/api seed"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

@@ -23,7 +23,7 @@
 import { z } from 'zod';
 import type { RawItem } from '../schemas';
 import type { SourceAdapter } from './types';
-import { clampText, decodeEntities, finalizeItems } from './util';
+import { clampText, decodeEntities, finalizeItems, ADAPTER_HEADERS } from './util';
 
 const BOOTSTRAP_LOOKBACK_SEC = 7 * 86_400;
 const MIN_QUOTA = 10;
@@ -70,7 +70,7 @@ export const stackoverflowAdapter: SourceAdapter = {
     });
     if (auth) params.set('key', auth);
 
-    const res = await doFetch(`https://api.stackexchange.com/2.3/search/excerpts?${params}`);
+    const res = await doFetch(`https://api.stackexchange.com/2.3/search/excerpts?${params}`, { headers: ADAPTER_HEADERS });
     if (!res.ok) {
       throw new Error(`stackoverflow: SE API responded ${res.status}`);
     }

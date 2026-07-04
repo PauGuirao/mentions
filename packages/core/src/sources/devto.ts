@@ -18,7 +18,7 @@
 import { z } from 'zod';
 import type { RawItem } from '../schemas';
 import type { SourceAdapter } from './types';
-import { clampText, finalizeItems } from './util';
+import { clampText, finalizeItems, ADAPTER_HEADERS } from './util';
 
 const BOOTSTRAP_LOOKBACK_MS = 3_600_000;
 const PER_PAGE = 100;
@@ -55,6 +55,7 @@ export const devtoAdapter: SourceAdapter = {
     for (let page = 1; page <= MAX_PAGES; page++) {
       const res = await doFetch(
         `https://dev.to/api/articles/latest?page=${page}&per_page=${PER_PAGE}`,
+        { headers: ADAPTER_HEADERS },
       );
       if (!res.ok) {
         throw new Error(`devto: articles/latest responded ${res.status}`);
