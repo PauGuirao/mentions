@@ -1,0 +1,37 @@
+{
+  "kind": "youtube#searchListResponse",
+  "pageInfo": { "totalResults": 3, "resultsPerPage": 50 },
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "id": { "kind": "youtube#video", "videoId": "dQw4w9WgXcQ" },
+      "snippet": {
+        "publishedAt": "2026-07-02T08:30:00Z",
+        "channelId": "UCkatie123",
+        "title": "Zernio review: it&#39;s good &amp; cheap",
+        "description": "Full walkthrough of Zernio for scheduling posts across platforms.",
+        "channelTitle": "Katie Codes"
+      }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "id": { "kind": "youtube#video", "videoId": "aB3cD5eF7gH" },
+      "snippet": {
+        "publishedAt": "2026-07-01T18:00:00Z",
+        "channelId": "UCdev456",
+        "title": "I tried every social tool so you don&#39;t have to",
+        "description": "Buffer vs Hootsuite vs Zernio, ranked.",
+        "channelTitle": "DevTool Digest"
+      }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "id": { "kind": "youtube#channel", "channelId": "UCnovideo789" },
+      "snippet": {
+        "publishedAt": "2026-06-30T10:00:00Z",
+        "title": "malformed: a channel result without a videoId",
+        "description": ""
+      }
+    }
+  ]
+}

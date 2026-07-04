@@ -12,14 +12,58 @@ import {
   rawItemsMessageSchema,
   type RawItemsMessage,
 } from '@mentions/core/pipeline';
-import type { RawItem } from '@mentions/core/schemas';
-import { SOURCE_ADAPTERS } from '@mentions/core/sources/index';
+import type { RawItem, Source } from '@mentions/core/schemas';
+import {
+  createMonthlyReadMeter,
+  SOURCE_ADAPTERS,
+  X_DEFAULT_MONTHLY_READ_CAP,
+  type BudgetMeter,
+} from '@mentions/core/sources/index';
 
 interface Env {
   DB: D1Database;
+  KV: KVNamespace;
   RAW_ITEMS: Queue<RawItemsMessage>;
   /** Optional secret; raises GitHub search from 10 to 30 req/min. */
   GITHUB_TOKEN?: string;
+  /** Optional secrets (the Reddit app's credentials); until BOTH are set the
+   *  reddit adapter defers every poll. */
+  REDDIT_CLIENT_ID?: string;
+  REDDIT_CLIENT_SECRET?: string;
+  /** Optional secret; until set the x adapter defers every poll. */
+  X_BEARER_TOKEN?: string;
+  /** Optional var; posts/month the x adapter may read (cost gate). */
+  X_MONTHLY_READ_CAP?: string;
+  /** Optional secret (Data API v3 key); until set the youtube adapter defers
+   *  every poll. */
+  YOUTUBE_API_KEY?: string;
+}
+
+/** Per-source credentials for adapter fetches; undefined means the source
+ *  runs unauthenticated (github) or defers until configured (reddit, x). */
+function adapterAuth(source: Source, env: Env): string | undefined {
+  switch (source) {
+    case 'github':
+      return env.GITHUB_TOKEN;
+    case 'reddit':
+      return env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET
+        ? `${env.REDDIT_CLIENT_ID}:${env.REDDIT_CLIENT_SECRET}`
+        : undefined;
+    case 'x':
+      return env.X_BEARER_TOKEN;
+    case 'youtube':
+      return env.YOUTUBE_API_KEY;
+    default:
+      return undefined;
+  }
+}
+
+/** x is the only metered-spend source; everything else polls free APIs. */
+function adapterBudget(source: Source, env: Env): BudgetMeter | undefined {
+  if (source !== 'x') return undefined;
+  const configured = Number.parseInt(env.X_MONTHLY_READ_CAP ?? '', 10);
+  const cap = Number.isFinite(configured) && configured > 0 ? configured : X_DEFAULT_MONTHLY_READ_CAP;
+  return createMonthlyReadMeter({ kv: env.KV, source, cap });
 }
 
 /** Give up on a job after this many delivery attempts (message.attempts is
@@ -88,7 +132,8 @@ async function handleMessage(message: Message<unknown>, env: Env): Promise<void>
     const { items, nextCursor } = await adapter.fetchSince({
       cursor,
       term,
-      auth: job.source === 'github' ? env.GITHUB_TOKEN : undefined,
+      auth: adapterAuth(job.source, env),
+      budget: adapterBudget(job.source, env),
     });
 
     for (const chunk of chunkItems(items)) {

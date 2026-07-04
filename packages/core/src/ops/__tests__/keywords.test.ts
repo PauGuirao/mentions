@@ -45,19 +45,62 @@ describe('createKeyword', () => {
 });
 
 describe('deleteKeyword', () => {
-  it('deletes org-scoped matches and the keyword in one batch', async () => {
-    const { db, queries } = createDbStub((query) =>
-      query.sql.includes('FROM keywords') ? { changes: 1 } : { changes: 3 },
-    );
+  it('looks up orphans, then deletes org-scoped matches and the keyword in one batch', async () => {
+    const { db, queries } = createDbStub((query) => {
+      if (query.sql.startsWith('SELECT')) return { results: [] }; // no orphaned mentions
+      if (query.sql.includes('FROM keywords')) return { changes: 1 };
+      return { changes: 3 };
+    });
     const deleted = await deleteKeyword({ db, orgId: 'org_1', keywordId: 'kw_1' });
     expect(deleted).toBe(true);
-    expect(queries).toHaveLength(2);
-    expect(queries[0]!.sql).toContain('DELETE FROM mention_matches');
-    expect(queries[1]!.sql).toContain('DELETE FROM keywords');
+    expect(queries).toHaveLength(3);
+    // Orphan lookup runs first and is guarded against mentions matched elsewhere.
+    expect(queries[0]!.sql).toContain('NOT EXISTS');
+    expect(queries[0]!.params).toEqual(['org_1', 'kw_1', 'org_1', 'kw_1']);
+    expect(queries[1]!.sql).toContain('DELETE FROM mention_matches');
+    expect(queries[2]!.sql).toContain('DELETE FROM keywords');
+    // Nothing to clean up when the lookup is empty.
+    expect(queries.some((q) => q.sql.includes('DELETE FROM mentions'))).toBe(false);
+  });
+
+  it('deletes mentions left orphaned once the keyword is removed', async () => {
+    const { db, queries } = createDbStub((query) => {
+      if (query.sql.startsWith('SELECT')) return { results: [{ id: 'men_1' }, { id: 'men_2' }] };
+      if (query.sql.includes('FROM keywords')) return { changes: 1 };
+      return { changes: 2 };
+    });
+    const deleted = await deleteKeyword({ db, orgId: 'org_1', keywordId: 'kw_1' });
+    expect(deleted).toBe(true);
+
+    const mentionsDelete = queries.find((q) => q.sql.includes('DELETE FROM mentions'));
+    expect(mentionsDelete).toBeDefined();
+    expect(mentionsDelete!.params).toEqual(['men_1', 'men_2']);
+
+    // FK ordering: the matches (child) must be deleted before the mentions (parent).
+    const matchesIdx = queries.findIndex((q) => q.sql.includes('DELETE FROM mention_matches'));
+    const mentionsIdx = queries.findIndex((q) => q.sql.includes('DELETE FROM mentions'));
+    expect(matchesIdx).toBeLessThan(mentionsIdx);
+  });
+
+  it('chunks orphan deletes under the D1 bound-parameter cap', async () => {
+    const orphans = Array.from({ length: 200 }, (_, i) => ({ id: `men_${i}` }));
+    const { db, queries } = createDbStub((query) => {
+      if (query.sql.startsWith('SELECT')) return { results: orphans };
+      if (query.sql.includes('FROM keywords')) return { changes: 1 };
+      return { changes: 1 };
+    });
+    await deleteKeyword({ db, orgId: 'org_1', keywordId: 'kw_1' });
+
+    const mentionDeletes = queries.filter((q) => q.sql.includes('DELETE FROM mentions'));
+    expect(mentionDeletes).toHaveLength(3); // 200 ids -> 90 + 90 + 20
+    for (const del of mentionDeletes) {
+      expect(del.params.length).toBeLessThanOrEqual(90);
+    }
+    expect(mentionDeletes.flatMap((d) => d.params)).toHaveLength(200);
   });
 
   it('returns false when the keyword does not exist for the org', async () => {
-    const { db } = createDbStub(() => ({ changes: 0 }));
+    const { db } = createDbStub((query) => (query.sql.startsWith('SELECT') ? { results: [] } : { changes: 0 }));
     expect(await deleteKeyword({ db, orgId: 'org_1', keywordId: 'kw_missing' })).toBe(false);
   });
 });

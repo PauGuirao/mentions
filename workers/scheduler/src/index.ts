@@ -26,10 +26,19 @@ const GLOBAL_CADENCES = [
 ] as const satisfies ReadonlyArray<{ source: Source; cadenceMs: number }>;
 
 /** Per-term sources: cadence expressed in minutes because due-ness is
- *  slot-based on the minute index (see below). */
+ *  slot-based on the minute index (see below). reddit and x are scheduled
+ *  unconditionally but their adapters defer (no-op, cursor kept) until
+ *  credentials are configured on the ingest worker — flipping a source on is
+ *  a secret put, not a deploy. x additionally sits behind a monthly read
+ *  budget (see packages/core/src/sources/x.ts). */
 const PER_TERM_CADENCES = [
   { source: 'github', cadenceMinutes: 5 }, // 300s
   { source: 'stackoverflow', cadenceMinutes: 1440 }, // 86400s
+  { source: 'reddit', cadenceMinutes: 10 }, // 600s
+  { source: 'x', cadenceMinutes: 60 }, // 3600s, kept coarse to respect the read budget
+  // YouTube search costs 100 quota units against a 10k/day default quota =
+  // ~100 searches/day total. Twice daily per term keeps headroom to ~50 terms.
+  { source: 'youtube', cadenceMinutes: 720 },
 ] as const satisfies ReadonlyArray<{ source: Source; cadenceMinutes: number }>;
 
 /** Cron ticks are nominally 60s apart but jitter a little; without slack a

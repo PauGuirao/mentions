@@ -25,5 +25,22 @@ export interface SourceAdapter {
     fetchImpl?: typeof fetch;
     /** Optional API token/key for rate headroom (e.g. GITHUB_TOKEN). */
     auth?: string;
+    /** Spend tracker for adapters that hit metered paid APIs (x). Provided by
+     *  the ingest worker; the guard logic itself lives in the adapter. */
+    budget?: BudgetMeter;
   }): Promise<{ items: RawItem[]; nextCursor: string | null }>;
+}
+
+/**
+ * Spend tracker for metered paid APIs. The adapter consults `remaining()`
+ * before spending and debits `record()` with what it actually consumed; the
+ * caller (ingest worker) supplies the storage. This is a SOFT guard: debits
+ * are read-modify-write on eventually consistent KV, so concurrent polls can
+ * slightly overshoot — set caps with headroom, never bill against them.
+ */
+export interface BudgetMeter {
+  /** Units still spendable in the current window. */
+  remaining(): Promise<number>;
+  /** Debit units actually consumed. */
+  record(units: number): Promise<void>;
 }

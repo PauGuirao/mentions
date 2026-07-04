@@ -8,8 +8,17 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "mentions", "database_id": "d7544f01-aeb7-4d49-903e-821cf0244f64" }
   ],
-  // Optional secret (set via `wrangler secret put GITHUB_TOKEN`): raises the
-  // GitHub search rate limit from 10 to 30 req/min.
+  // Holds the x adapter's monthly read-budget counters (budget:x:<YYYY-MM>);
+  // same namespace the scheduler and api workers share, keys are prefixed.
+  "kv_namespaces": [{ "binding": "KV", "id": "563524d26a444c0ca62c88b9616065c6" }],
+  // Optional secrets (set via `wrangler secret put <NAME>`):
+  // - GITHUB_TOKEN: raises GitHub search from 10 to 30 req/min.
+  // - REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET: enables reddit polling
+  //   (adapter defers until both exist).
+  // - X_BEARER_TOKEN: enables x polling (adapter defers until set; reads are
+  //   additionally capped by the X_MONTHLY_READ_CAP budget var).
+  // - YOUTUBE_API_KEY: enables youtube polling (adapter defers until set;
+  //   search costs 100 quota units/call against the key's 10k/day quota).
   "queues": {
     // Queue names must match QUEUES in packages/core/src/pipeline.ts.
     "producers": [{ "binding": "RAW_ITEMS", "queue": "mentions-raw-items" }],
