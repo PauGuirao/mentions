@@ -9,7 +9,8 @@
  */
 import { createAuthClient } from 'better-auth/react';
 
-export const authClient = createAuthClient({ baseURL: '/v1/auth' });
+// The client requires an absolute URL; same-origin keeps the cookie flow.
+export const authClient = createAuthClient({ baseURL: `${window.location.origin}/v1/auth` });
 
 const LOGGED_IN_MARKER = 'mentions.loggedIn';
 
