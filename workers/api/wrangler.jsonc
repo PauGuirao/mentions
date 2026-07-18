@@ -19,5 +19,12 @@
       "binding": "KV",
       "id": "563524d26a444c0ca62c88b9616065c6"
     }
-  ]
+  ],
+  "vars": {
+    // Public origin auth redirects resolve against; secrets
+    // (BETTER_AUTH_SECRET, BETTER_AUTH_API_KEY, GOOGLE_CLIENT_ID/SECRET)
+    // go via `wrangler secret put`, never here.
+    "BETTER_AUTH_URL": "https://mentions-api.guiraocastells.workers.dev",
+    "TRUSTED_ORIGINS": "http://localhost:5173"
+  }
 }

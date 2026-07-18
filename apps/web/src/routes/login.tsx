@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ApiError, api, hasCredentials, setSession } from '@/lib/api';
+import { hasCredentials } from '@/lib/api';
+import { authClient, markLoggedIn } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
@@ -23,16 +24,38 @@ export const Route = createFileRoute('/login')({
 
 type Mode = 'login' | 'signup';
 
+function GoogleIcon() {
+  return (
+    <svg className="size-4" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.5 12.3c0-.9-.1-1.5-.3-2.2H12v4.1h6.5c-.1 1.1-.8 2.7-2.4 3.8l3.7 2.8c2.2-2 3.7-5 3.7-8.5z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.2 0 5.9-1 7.9-2.9l-3.7-2.8c-1 .7-2.4 1.2-4.2 1.2-3.1 0-5.8-2-6.7-4.9l-3.9 3C3.4 21.3 7.4 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.3 14.6c-.2-.7-.4-1.4-.4-2.2s.1-1.5.4-2.2l-3.9-3C.5 8.8 0 10.3 0 12s.5 3.2 1.4 4.8l3.9-3.2z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.6c2.2 0 3.7 1 4.6 1.8L20 3.1C17.9 1.2 15.2 0 12 0 7.4 0 3.4 2.7 1.4 6.6l3.9 3c.9-2.9 3.6-5 6.7-5z"
+      />
+    </svg>
+  );
+}
+
 function LoginPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [orgName, setOrgName] = useState('');
   const [pending, setPending] = useState(false);
 
-  const submit = async () => {
+  const submitEmail = async () => {
     if (!email || !password) {
       toast.error('Email and password are required');
       return;
@@ -41,23 +64,34 @@ function LoginPage() {
     try {
       const result =
         mode === 'login'
-          ? await api.login({ email, password })
-          : await api.signup({
+          ? await authClient.signIn.email({ email, password })
+          : await authClient.signUp.email({
               email,
               password,
-              ...(name ? { name } : {}),
-              ...(orgName ? { orgName } : {}),
+              name: name || (email.split('@')[0] ?? email),
             });
-      setSession(result.token, result.user.email);
-      await navigate({ to: '/mentions' });
-    } catch (err) {
-      if (err instanceof ApiError) {
-        toast.error(err.message);
-      } else {
-        toast.error('Could not reach the API');
+      if (result.error) {
+        toast.error(result.error.message ?? 'Authentication failed');
+        return;
       }
+      markLoggedIn();
+      await navigate({ to: '/mentions' });
     } finally {
       setPending(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    // Full-page redirect to Google; on success Better Auth lands the browser
+    // back on /mentions with the session cookie set. The marker is set now
+    // because this tab navigates away and never sees the callback.
+    markLoggedIn();
+    const { error } = await authClient.signIn.social({
+      provider: 'google',
+      callbackURL: '/mentions',
+    });
+    if (error) {
+      toast.error(error.message ?? 'Google sign-in failed');
     }
   };
 
@@ -79,6 +113,15 @@ function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
+          <Button variant="outline" className="w-full" onClick={() => void signInWithGoogle()}>
+            <GoogleIcon />
+            Continue with Google
+          </Button>
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -100,35 +143,24 @@ function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') void submit();
+                if (event.key === 'Enter') void submitEmail();
               }}
             />
           </div>
           {mode === 'signup' ? (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="name">Your name (optional)</Label>
-                <Input
-                  id="name"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="org-name">Workspace name (optional)</Label>
-                <Input
-                  id="org-name"
-                  placeholder="Acme Inc"
-                  value={orgName}
-                  onChange={(event) => setOrgName(event.target.value)}
-                />
-              </div>
-            </>
+            <div className="grid gap-2">
+              <Label htmlFor="name">Your name (optional)</Label>
+              <Input
+                id="name"
+                autoComplete="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
           ) : null}
         </CardContent>
         <CardFooter className="grid gap-3">
-          <Button className="w-full" onClick={() => void submit()} disabled={pending}>
+          <Button className="w-full" onClick={() => void submitEmail()} disabled={pending}>
             {pending
               ? mode === 'login'
                 ? 'Signing in...'

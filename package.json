@@ -8,11 +8,18 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "dev:web": "pnpm --filter @mentions/web dev",
+    "dev:docs": "pnpm --filter @mentions/docs dev",
+    "dev:landing": "pnpm --filter @mentions/landing dev",
     "dev": "wrangler dev -c workers/api/wrangler.jsonc -c workers/scheduler/wrangler.jsonc -c workers/ingest/wrangler.jsonc -c workers/firehose-bluesky/wrangler.jsonc -c workers/matcher/wrangler.jsonc -c workers/classifier/wrangler.jsonc -c workers/deliverer/wrangler.jsonc",
     "migrate:local": "wrangler d1 migrations apply mentions --local -c workers/api/wrangler.jsonc",
     "seed": "pnpm --filter @mentions/api seed"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "@better-auth/infra@0.3.6": "patches/@better-auth__infra@0.3.6.patch"
+    }
   }
 }

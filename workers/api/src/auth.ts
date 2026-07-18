@@ -1,39 +1,43 @@
 import { createMiddleware } from 'hono/factory';
 import { verifyApiKey } from '@mentions/core/ops/api-keys';
-import { verifySession } from '@mentions/core/ops/sessions';
+import { getOrgForUser } from '@mentions/core/ops/org-members';
+import { getAuth } from './better-auth';
 import { errorBody } from './errors';
 import type { AppEnv } from './types';
 
-const PUBLIC_PATHS = new Set(['/v1/health', '/v1/openapi.json', '/v1/auth/signup', '/v1/auth/login']);
+const PUBLIC_PATHS = new Set(['/v1/health', '/v1/openapi.json']);
+/** Better Auth owns this namespace; its handler does its own auth. */
+const AUTH_PREFIX = '/v1/auth/';
 
 export const auth = createMiddleware<AppEnv>(async (c, next) => {
-  if (PUBLIC_PATHS.has(c.req.path)) {
+  if (PUBLIC_PATHS.has(c.req.path) || c.req.path.startsWith(AUTH_PREFIX)) {
     return next();
   }
 
   const header = c.req.header('authorization');
   const token = header?.toLowerCase().startsWith('bearer ') ? header.slice('bearer '.length).trim() : undefined;
-  if (!token) {
-    return c.json(errorBody('unauthorized', 'Missing bearer token'), 401);
-  }
 
-  // Two credential kinds share the Bearer scheme: sess_ session tokens
-  // (humans, carry a user) and mk_live_ API keys (machines, org only).
-  if (token.startsWith('sess_')) {
-    const session = await verifySession({ db: c.env.DB, kv: c.env.KV, token });
-    if (!session) {
-      return c.json(errorBody('unauthorized', 'Invalid or expired session'), 401);
+  // Machines: org-scoped API keys via the Authorization header.
+  if (token?.startsWith('mk_live_')) {
+    const verified = await verifyApiKey({ db: c.env.DB, kv: c.env.KV, token });
+    if (!verified) {
+      return c.json(errorBody('unauthorized', 'Invalid API key'), 401);
     }
-    c.set('orgId', session.orgId);
-    c.set('userId', session.userId);
+    c.set('orgId', verified.orgId);
     return next();
   }
 
-  const verified = await verifyApiKey({ db: c.env.DB, kv: c.env.KV, token });
-  if (!verified) {
-    return c.json(errorBody('unauthorized', 'Invalid API key'), 401);
+  // Humans: Better Auth session (cookie; header pass-through covers plugins).
+  const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
+  if (session) {
+    const orgId = await getOrgForUser({ db: c.env.DB, userId: session.user.id });
+    if (!orgId) {
+      return c.json(errorBody('unauthorized', 'User has no workspace'), 401);
+    }
+    c.set('orgId', orgId);
+    c.set('userId', session.user.id);
+    return next();
   }
 
-  c.set('orgId', verified.orgId);
-  await next();
+  return c.json(errorBody('unauthorized', 'Missing or invalid credentials'), 401);
 });

@@ -5,11 +5,10 @@
  * API worker, and the deployed worker forwards /v1/* over a service binding.
  */
 import type { Keyword, Mention, SearchMentionsQuery, User } from '@mentions/core/schemas';
+import { clearLoggedIn, isLoggedIn } from './auth-client';
 
 const API_KEY_STORAGE = 'mentions.apiKey';
 const API_URL_STORAGE = 'mentions.apiUrl';
-const SESSION_TOKEN_STORAGE = 'mentions.sessionToken';
-const SESSION_EMAIL_STORAGE = 'mentions.sessionEmail';
 
 export function getApiKey(): string {
   return localStorage.getItem(API_KEY_STORAGE) ?? '';
@@ -24,28 +23,11 @@ export function hasApiKey(): boolean {
   return getApiKey() !== '';
 }
 
-export function getSessionToken(): string {
-  return localStorage.getItem(SESSION_TOKEN_STORAGE) ?? '';
-}
-
-export function getSessionEmail(): string {
-  return localStorage.getItem(SESSION_EMAIL_STORAGE) ?? '';
-}
-
-export function setSession(token: string, email: string): void {
-  localStorage.setItem(SESSION_TOKEN_STORAGE, token);
-  localStorage.setItem(SESSION_EMAIL_STORAGE, email);
-}
-
-export function clearSession(): void {
-  localStorage.removeItem(SESSION_TOKEN_STORAGE);
-  localStorage.removeItem(SESSION_EMAIL_STORAGE);
-}
-
-/** A session (human login) or an API key (manual Settings setup) both work;
- *  the session wins when both are present. */
+/** A Better Auth session cookie (human login) or an API key (manual Settings
+ *  setup) both work. The cookie is httpOnly, so the logged-in marker stands
+ *  in for it client-side. */
 export function hasCredentials(): boolean {
-  return getSessionToken() !== '' || hasApiKey();
+  return isLoggedIn() || hasApiKey();
 }
 
 export function getApiUrl(): string {
@@ -70,11 +52,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const bearer = getSessionToken() || getApiKey();
+  const apiKey = getApiKey();
   const res = await fetch(`${getApiUrl()}/v1${path}`, {
     ...init,
+    // The session cookie rides along same-origin; the header is only for
+    // machine keys (and wins over the cookie server-side when present).
     headers: {
-      Authorization: `Bearer ${bearer}`,
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },
@@ -89,11 +73,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Non-JSON error body; keep the fallback message.
     }
-    // An expired/revoked session is not recoverable in place: drop it and
-    // land on the login screen. Auth endpoints are excluded so a wrong
-    // password just surfaces as a normal error.
-    if (res.status === 401 && getSessionToken() && !path.startsWith('/auth/')) {
-      clearSession();
+    // An expired session cookie is not recoverable in place: drop the marker
+    // and land on the login screen.
+    if (res.status === 401 && isLoggedIn() && !apiKey) {
+      clearLoggedIn();
       window.location.assign('/login');
     }
     throw new ApiError(res.status, code, message);
@@ -101,10 +84,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export interface SessionResponse {
-  token: string;
-  expiresAt: number;
+export interface MeResponse {
   user: User;
+  orgs: Array<{ id: string; name: string; role: 'owner' | 'member' }>;
 }
 
 export type MentionFilters = Partial<Omit<SearchMentionsQuery, 'limit'>>;
@@ -114,21 +96,8 @@ export interface MentionsPage {
 }
 
 export const api = {
-  login(body: { email: string; password: string }): Promise<SessionResponse> {
-    return request('/auth/login', { method: 'POST', body: JSON.stringify(body) });
-  },
-
-  signup(body: {
-    email: string;
-    password: string;
-    name?: string;
-    orgName?: string;
-  }): Promise<SessionResponse> {
-    return request('/auth/signup', { method: 'POST', body: JSON.stringify(body) });
-  },
-
-  logout(): Promise<{ loggedOut: boolean }> {
-    return request('/auth/logout', { method: 'POST', body: JSON.stringify({}) });
+  me(): Promise<MeResponse> {
+    return request('/me');
   },
 
   searchMentions(filters: MentionFilters): Promise<MentionsPage> {

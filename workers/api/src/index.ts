@@ -4,18 +4,23 @@
  */
 import { createRoute, z } from '@hono/zod-openapi';
 import { auth } from './auth';
+import { getAuth } from './better-auth';
 import { errorBody } from './errors';
 import { createRouter } from './router';
 import { apiKeysRouter } from './routes/api-keys';
-import { authRouter } from './routes/auth';
 import { companyRouter } from './routes/company';
 import { keywordsRouter } from './routes/keywords';
 import { mentionsRouter } from './routes/mentions';
+import { meRouter } from './routes/me';
 
 const app = createRouter();
 
-// Auth for everything under /v1 except health and the spec (skipped inside).
+// Auth for everything under /v1 except health, the spec, and /v1/auth/*
+// (all skipped inside the middleware).
 app.use('/v1/*', auth);
+
+// Better Auth owns /v1/auth/*: signup, login, OAuth callbacks, session.
+app.on(['GET', 'POST'], '/v1/auth/*', (c) => getAuth(c.env).handler(c.req.raw));
 
 const healthRoute = createRoute({
   method: 'get',
@@ -36,7 +41,7 @@ v1.route('/', keywordsRouter);
 v1.route('/', mentionsRouter);
 v1.route('/', companyRouter);
 v1.route('/', apiKeysRouter);
-v1.route('/', authRouter);
+v1.route('/', meRouter);
 
 app.route('/v1', v1);
 

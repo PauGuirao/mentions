@@ -1,0 +1,13 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index a37d704ae3c257b0e4f086dd72c1aae2ab233f23..38bccb258d1634d21c82c358372107068a67c7b5 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -8,7 +8,7 @@ import { APIError as APIError$1, createAuthEndpoint, createAuthMiddleware, reque
+ import { createFetch } from "@better-fetch/fetch";
+ import { isValidPhoneNumber, parsePhoneNumberFromString } from "libphonenumber-js";
+ import { createLocalJWKSet, jwtVerify } from "jose";
+-import z$1, { z } from "zod";
++import z$1, { z } from "zod/v4";
+ import { deleteSessionCookie, setSessionCookie } from "better-auth/cookies";
+ import { generateRandomString, symmetricEncrypt } from "better-auth/crypto";
+ import { createOTP } from "@better-auth/utils/otp";

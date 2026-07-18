@@ -8,7 +8,8 @@ import {
 } from '@tanstack/react-router';
 import { LogOut, Radio, Settings, Tag } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
-import { api, clearSession, getSessionEmail, getSessionToken, hasCredentials } from '@/lib/api';
+import { hasCredentials } from '@/lib/api';
+import { authClient, clearLoggedIn } from '@/lib/auth-client';
 
 const NAV = [
   { to: '/mentions', label: 'Mentions', icon: Radio },
@@ -74,17 +75,16 @@ function RootLayout() {
 
 function SidebarFooter() {
   const navigate = useNavigate();
-  const email = getSessionEmail();
+  const { data: session } = authClient.useSession();
+  const email = session?.user.email ?? '';
 
   const signOut = async () => {
-    if (getSessionToken()) {
-      try {
-        await api.logout();
-      } catch {
-        // Revocation is best-effort; the local session is cleared regardless.
-      }
+    try {
+      await authClient.signOut();
+    } catch {
+      // Revocation is best-effort; the local marker is cleared regardless.
     }
-    clearSession();
+    clearLoggedIn();
     await navigate({ to: '/login' });
   };
 
