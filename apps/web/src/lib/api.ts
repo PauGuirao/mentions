@@ -4,10 +4,12 @@
  * The base URL defaults to same-origin: the Vite dev server proxies /v1 to the
  * API worker, and the deployed worker forwards /v1/* over a service binding.
  */
-import type { Keyword, Mention, SearchMentionsQuery } from '@mentions/core/schemas';
+import type { Keyword, Mention, SearchMentionsQuery, User } from '@mentions/core/schemas';
 
 const API_KEY_STORAGE = 'mentions.apiKey';
 const API_URL_STORAGE = 'mentions.apiUrl';
+const SESSION_TOKEN_STORAGE = 'mentions.sessionToken';
+const SESSION_EMAIL_STORAGE = 'mentions.sessionEmail';
 
 export function getApiKey(): string {
   return localStorage.getItem(API_KEY_STORAGE) ?? '';
@@ -20,6 +22,30 @@ export function setApiKey(key: string): void {
 
 export function hasApiKey(): boolean {
   return getApiKey() !== '';
+}
+
+export function getSessionToken(): string {
+  return localStorage.getItem(SESSION_TOKEN_STORAGE) ?? '';
+}
+
+export function getSessionEmail(): string {
+  return localStorage.getItem(SESSION_EMAIL_STORAGE) ?? '';
+}
+
+export function setSession(token: string, email: string): void {
+  localStorage.setItem(SESSION_TOKEN_STORAGE, token);
+  localStorage.setItem(SESSION_EMAIL_STORAGE, email);
+}
+
+export function clearSession(): void {
+  localStorage.removeItem(SESSION_TOKEN_STORAGE);
+  localStorage.removeItem(SESSION_EMAIL_STORAGE);
+}
+
+/** A session (human login) or an API key (manual Settings setup) both work;
+ *  the session wins when both are present. */
+export function hasCredentials(): boolean {
+  return getSessionToken() !== '' || hasApiKey();
 }
 
 export function getApiUrl(): string {
@@ -44,10 +70,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const bearer = getSessionToken() || getApiKey();
   const res = await fetch(`${getApiUrl()}/v1${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${getApiKey()}`,
+      Authorization: `Bearer ${bearer}`,
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },
@@ -62,9 +89,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Non-JSON error body; keep the fallback message.
     }
+    // An expired/revoked session is not recoverable in place: drop it and
+    // land on the login screen. Auth endpoints are excluded so a wrong
+    // password just surfaces as a normal error.
+    if (res.status === 401 && getSessionToken() && !path.startsWith('/auth/')) {
+      clearSession();
+      window.location.assign('/login');
+    }
     throw new ApiError(res.status, code, message);
   }
   return (await res.json()) as T;
+}
+
+export interface SessionResponse {
+  token: string;
+  expiresAt: number;
+  user: User;
 }
 
 export type MentionFilters = Partial<Omit<SearchMentionsQuery, 'limit'>>;
@@ -74,6 +114,23 @@ export interface MentionsPage {
 }
 
 export const api = {
+  login(body: { email: string; password: string }): Promise<SessionResponse> {
+    return request('/auth/login', { method: 'POST', body: JSON.stringify(body) });
+  },
+
+  signup(body: {
+    email: string;
+    password: string;
+    name?: string;
+    orgName?: string;
+  }): Promise<SessionResponse> {
+    return request('/auth/signup', { method: 'POST', body: JSON.stringify(body) });
+  },
+
+  logout(): Promise<{ loggedOut: boolean }> {
+    return request('/auth/logout', { method: 'POST', body: JSON.stringify({}) });
+  },
+
   searchMentions(filters: MentionFilters): Promise<MentionsPage> {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) {

@@ -3,11 +3,11 @@ import { AlertCircle, KeyRound } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ApiError, hasApiKey } from '@/lib/api';
+import { ApiError, hasCredentials } from '@/lib/api';
 
-/** 401s and a missing key render a connect prompt; anything else an alert. */
+/** 401s and missing credentials render a connect prompt; anything else an alert. */
 export function QueryError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  if (!hasApiKey() || (error instanceof ApiError && error.status === 401)) {
+  if (!hasCredentials() || (error instanceof ApiError && error.status === 401)) {
     return <ConnectPrompt />;
   }
   const message = error instanceof Error ? error.message : 'Something went wrong';
@@ -36,12 +36,17 @@ export function ConnectPrompt() {
       <div className="space-y-1">
         <p className="font-medium">Connect to your Mentions API</p>
         <p className="text-sm text-muted-foreground">
-          Add your API key in settings to load data from the API.
+          Sign in with your account, or add an API key in settings.
         </p>
       </div>
-      <Button size="sm" render={<Link to="/settings" />}>
-        Open settings
-      </Button>
+      <div className="flex gap-2">
+        <Button size="sm" render={<Link to="/login" />}>
+          Sign in
+        </Button>
+        <Button size="sm" variant="outline" render={<Link to="/settings" />}>
+          Open settings
+        </Button>
+      </div>
     </Card>
   );
 }

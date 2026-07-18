@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ApiError, api, getApiKey, getApiUrl, hasApiKey, setApiKey, setApiUrl } from '@/lib/api';
+import { ApiError, api, getApiKey, getApiUrl, hasApiKey, hasCredentials, setApiKey, setApiUrl } from '@/lib/api';
 
 export const Route = createFileRoute('/settings')({ component: SettingsPage });
 
@@ -107,7 +107,7 @@ function CompanyContextCard() {
   const contextQuery = useQuery({
     queryKey: ['company'],
     queryFn: api.getCompanyContext,
-    enabled: hasApiKey(),
+    enabled: hasCredentials(),
   });
 
   useEffect(() => {
@@ -137,13 +137,13 @@ function CompanyContextCard() {
           rows={8}
           maxLength={CONTEXT_MAX}
           placeholder={
-            hasApiKey()
+            hasCredentials()
               ? 'We build X for Y. Our products are... Our competitors are...'
-              : 'Connect an API key above to edit the company context.'
+              : 'Sign in or connect an API key to edit the company context.'
           }
           value={context}
           onChange={(event) => setContext(event.target.value)}
-          disabled={!hasApiKey() || contextQuery.isLoading}
+          disabled={!hasCredentials() || contextQuery.isLoading}
         />
         <p className="text-right text-xs text-muted-foreground">
           {context.length}/{CONTEXT_MAX}
@@ -152,7 +152,7 @@ function CompanyContextCard() {
       <CardFooter>
         <Button
           onClick={() => saveMutation.mutate()}
-          disabled={!hasApiKey() || saveMutation.isPending}
+          disabled={!hasCredentials() || saveMutation.isPending}
         >
           {saveMutation.isPending ? 'Saving...' : 'Save context'}
         </Button>

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as KeywordsRouteImport } from './routes/keywords'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsRouteImport } from './routes/mentions'
 import { Route as SettingsRouteImport } from './routes/settings'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const KeywordsRoute = KeywordsRouteImport.update({
   id: '/keywords',
   path: '/keywords',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MentionsRoute = MentionsRouteImport.update({
@@ -38,12 +44,14 @@ const SettingsRoute = SettingsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/keywords': typeof KeywordsRoute
+  '/login': typeof LoginRoute
   '/mentions': typeof MentionsRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/keywords': typeof KeywordsRoute
+  '/login': typeof LoginRoute
   '/mentions': typeof MentionsRoute
   '/settings': typeof SettingsRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/keywords': typeof KeywordsRoute
+  '/login': typeof LoginRoute
   '/mentions': typeof MentionsRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/keywords' | '/mentions' | '/settings'
+  fullPaths: '/' | '/keywords' | '/login' | '/mentions' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/keywords' | '/mentions' | '/settings'
-  id: '__root__' | '/' | '/keywords' | '/mentions' | '/settings'
+  to: '/' | '/keywords' | '/login' | '/mentions' | '/settings'
+  id: '__root__' | '/' | '/keywords' | '/login' | '/mentions' | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   KeywordsRoute: typeof KeywordsRoute
+  LoginRoute: typeof LoginRoute
   MentionsRoute: typeof MentionsRoute
   SettingsRoute: typeof SettingsRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/keywords'
       fullPath: '/keywords'
       preLoaderRoute: typeof KeywordsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mentions': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   KeywordsRoute: KeywordsRoute,
+  LoginRoute: LoginRoute,
   MentionsRoute: MentionsRoute,
   SettingsRoute: SettingsRoute,
 }

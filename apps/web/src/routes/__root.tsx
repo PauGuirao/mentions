@@ -1,6 +1,14 @@
-import { Link, Outlet, createRootRoute } from '@tanstack/react-router';
-import { Radio, Settings, Tag } from 'lucide-react';
+import {
+  Link,
+  Outlet,
+  createRootRoute,
+  redirect,
+  useLocation,
+  useNavigate,
+} from '@tanstack/react-router';
+import { LogOut, Radio, Settings, Tag } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
+import { api, clearSession, getSessionEmail, getSessionToken, hasCredentials } from '@/lib/api';
 
 const NAV = [
   { to: '/mentions', label: 'Mentions', icon: Radio },
@@ -8,9 +16,28 @@ const NAV = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const;
 
-export const Route = createRootRoute({ component: RootLayout });
+export const Route = createRootRoute({
+  beforeLoad: ({ location }) => {
+    if (location.pathname !== '/login' && !hasCredentials()) {
+      throw redirect({ to: '/login' });
+    }
+  },
+  component: RootLayout,
+});
 
 function RootLayout() {
+  const { pathname } = useLocation();
+
+  // The login screen owns the full viewport; no sidebar chrome.
+  if (pathname === '/login') {
+    return (
+      <>
+        <Outlet />
+        <Toaster theme="light" />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 left-0 flex w-56 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -35,16 +62,55 @@ function RootLayout() {
             </Link>
           ))}
         </nav>
-        <div className="mt-auto border-t border-sidebar-border p-4">
-          <p className="text-xs text-muted-foreground">
-            Tracking dev platforms via the Mentions API.
-          </p>
-        </div>
+        <SidebarFooter />
       </aside>
       <main className="ml-56">
         <Outlet />
       </main>
       <Toaster theme="light" />
+    </div>
+  );
+}
+
+function SidebarFooter() {
+  const navigate = useNavigate();
+  const email = getSessionEmail();
+
+  const signOut = async () => {
+    if (getSessionToken()) {
+      try {
+        await api.logout();
+      } catch {
+        // Revocation is best-effort; the local session is cleared regardless.
+      }
+    }
+    clearSession();
+    await navigate({ to: '/login' });
+  };
+
+  if (!email) {
+    return (
+      <div className="mt-auto border-t border-sidebar-border p-4">
+        <p className="text-xs text-muted-foreground">
+          Tracking dev platforms via the Mentions API.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border p-4">
+      <p className="truncate text-xs text-muted-foreground" title={email}>
+        {email}
+      </p>
+      <button
+        type="button"
+        className="text-muted-foreground transition-colors hover:text-sidebar-accent-foreground"
+        title="Sign out"
+        onClick={() => void signOut()}
+      >
+        <LogOut className="size-4" />
+      </button>
     </div>
   );
 }
