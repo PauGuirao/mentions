@@ -7,6 +7,7 @@ import { auth } from './auth';
 import { errorBody } from './errors';
 import { createRouter } from './router';
 import { apiKeysRouter } from './routes/api-keys';
+import { authRouter } from './routes/auth';
 import { companyRouter } from './routes/company';
 import { keywordsRouter } from './routes/keywords';
 import { mentionsRouter } from './routes/mentions';
@@ -35,6 +36,7 @@ v1.route('/', keywordsRouter);
 v1.route('/', mentionsRouter);
 v1.route('/', companyRouter);
 v1.route('/', apiKeysRouter);
+v1.route('/', authRouter);
 
 app.route('/v1', v1);
 

@@ -15,6 +15,8 @@ export type ErrorCode =
   | 'not_found'
   | 'validation_error'
   | 'duplicate_keyword'
+  | 'duplicate_user'
+  | 'invalid_credentials'
   | 'invalid_cursor'
   | 'internal_error';
 

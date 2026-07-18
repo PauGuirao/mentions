@@ -153,3 +153,42 @@ export const classificationSchema = z.object({
   note: z.string().max(200),
 });
 export type Classification = z.infer<typeof classificationSchema>;
+
+// ---------------------------------------------------------------------------
+// Users & sessions (human auth; orgs stay the tenant)
+// ---------------------------------------------------------------------------
+
+export const orgRoleSchema = z.enum(['owner', 'member']);
+
+export const signupBodySchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(128),
+  name: z.string().max(80).optional(),
+  /** Workspace name; defaults to "<email local part>'s workspace". */
+  orgName: z.string().min(1).max(80).optional(),
+});
+
+export const loginBodySchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(1).max(128),
+});
+
+export const userSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string(),
+  createdAt: z.number(),
+});
+export type User = z.infer<typeof userSchema>;
+
+/** Returned by signup and login. The token is shown exactly once. */
+export const sessionResponseSchema = z.object({
+  token: z.string(),
+  expiresAt: z.number(),
+  user: userSchema,
+});
+
+export const meResponseSchema = z.object({
+  user: userSchema,
+  orgs: z.array(z.object({ id: z.string(), name: z.string(), role: orgRoleSchema })),
+});
