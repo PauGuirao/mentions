@@ -1,5 +1,6 @@
-/** Network-free fetch stub for adapter tests: replays canned JSON payloads
- *  (one per call; the last one repeats) and records every request. */
+/** Network-free fetch stub for adapter tests: replays canned payloads
+ *  (one per call; the last one repeats) and records every request. Objects
+ *  are served as JSON; STRING payloads are served raw (for XML feeds). */
 
 export interface RecordedRequest {
   url: string;
@@ -26,6 +27,12 @@ export function stubFetch({ responses }: { responses: unknown[] }): {
     requests.push({ url, headers });
 
     if (remaining.length > 0) current = remaining.shift() ?? null;
+    if (typeof current === 'string') {
+      return new Response(current, {
+        status: 200,
+        headers: { 'content-type': 'application/rss+xml' },
+      });
+    }
     return new Response(JSON.stringify(current), {
       status: 200,
       headers: { 'content-type': 'application/json' },

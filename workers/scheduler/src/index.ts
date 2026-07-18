@@ -39,6 +39,9 @@ const PER_TERM_CADENCES = [
   // YouTube search costs 100 quota units against a 10k/day default quota =
   // ~100 searches/day total. Twice daily per term keeps headroom to ~50 terms.
   { source: 'youtube', cadenceMinutes: 720 },
+  // Keyless GDELT DOC API (updates every ~15 min, 1 req/5s/IP rate limit);
+  // 30 min keeps us far below the limit and is plenty for news latency.
+  { source: 'news', cadenceMinutes: 30 },
 ] as const satisfies ReadonlyArray<{ source: Source; cadenceMinutes: number }>;
 
 /** Cron ticks are nominally 60s apart but jitter a little; without slack a

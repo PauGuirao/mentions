@@ -6,7 +6,7 @@ architecture invariants; each worker's wrangler.jsonc documents its bindings.
 
 ## Pipeline
 
-scheduler (cron) -> q:fetch-jobs -> ingest (HN/GitHub/SO/DEV/Reddit/X/YouTube adapters)
+scheduler (cron) -> q:fetch-jobs -> ingest (HN/GitHub/SO/DEV/Reddit/X/YouTube/News adapters)
 firehose-bluesky (DO + Jetstream websocket) ────────┐
 ingest ─────────────────────────────────────────────┴-> q:raw-items
   -> matcher (dedupe + multi-tenant keyword match) -> q:classify

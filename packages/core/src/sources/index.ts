@@ -11,6 +11,7 @@ import type { SourceAdapter } from './types';
 import { devtoAdapter } from './devto';
 import { githubAdapter } from './github';
 import { hackernewsAdapter } from './hackernews';
+import { newsAdapter } from './news';
 import { redditAdapter } from './reddit';
 import { stackoverflowAdapter } from './stackoverflow';
 import { xAdapter } from './x';
@@ -21,6 +22,7 @@ export {
   devtoAdapter,
   githubAdapter,
   hackernewsAdapter,
+  newsAdapter,
   redditAdapter,
   stackoverflowAdapter,
   xAdapter,
@@ -36,4 +38,5 @@ export const SOURCE_ADAPTERS: Partial<Record<Source, SourceAdapter>> = {
   reddit: redditAdapter,
   x: xAdapter,
   youtube: youtubeAdapter,
+  news: newsAdapter,
 };

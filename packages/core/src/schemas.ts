@@ -18,6 +18,7 @@ export const SOURCES = [
   'reddit',
   'x',
   'youtube',
+  'news',
 ] as const;
 export const sourceSchema = z.enum(SOURCES);
 export type Source = z.infer<typeof sourceSchema>;
