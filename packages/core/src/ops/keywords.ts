@@ -6,6 +6,9 @@
 import { newId } from '../ids';
 import { normalizeTerm } from '../match';
 import type { Keyword } from '../schemas';
+import { KeywordLimitError, getKeywordLimit, syncKeywordUsage } from './billing';
+
+export { KeywordLimitError } from './billing';
 
 /** Thrown when (org_id, normalized_term) already exists for the org. */
 export class DuplicateKeywordError extends Error {
@@ -38,21 +41,31 @@ export async function createKeyword(args: {
   kind: 'brand' | 'competitor' | 'topic';
 }): Promise<Keyword> {
   const { db, orgId, term, kind } = args;
+  const limit = await getKeywordLimit({ db, orgId });
   const id = newId('kw');
   const createdAt = Date.now();
   try {
-    await db
+    // Capacity check and insert are ONE statement: a separate read-then-write
+    // lets two concurrent creates both pass the gate. changes = 0 here can
+    // only mean the WHERE guard failed, i.e. the org is at its limit.
+    const result = await db
       .prepare(
-        'INSERT INTO keywords (id, org_id, term, normalized_term, kind, muted, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)',
+        `INSERT INTO keywords (id, org_id, term, normalized_term, kind, muted, created_at)
+         SELECT ?1, ?2, ?3, ?4, ?5, 0, ?6
+         WHERE (SELECT COUNT(*) FROM keywords WHERE org_id = ?2 AND muted = 0) < ?7`,
       )
-      .bind(id, orgId, term, normalizeTerm(term), kind, createdAt)
+      .bind(id, orgId, term, normalizeTerm(term), kind, createdAt, limit)
       .run();
+    if ((result.meta.changes ?? 0) === 0) {
+      throw new KeywordLimitError(limit);
+    }
   } catch (err) {
     if (err instanceof Error && /UNIQUE constraint failed/i.test(err.message)) {
       throw new DuplicateKeywordError(term);
     }
     throw err;
   }
+  await syncKeywordUsage({ db, orgId, nowMs: createdAt });
   return { id, term, kind, muted: false, createdAt };
 }
 
@@ -120,11 +133,40 @@ export async function setKeywordMuted(args: {
   keywordId: string;
   muted: boolean;
 }): Promise<boolean> {
-  const result = await args.db
-    .prepare('UPDATE keywords SET muted = ? WHERE id = ? AND org_id = ?')
-    .bind(args.muted ? 1 : 0, args.keywordId, args.orgId)
+  const { db, orgId, keywordId } = args;
+  if (args.muted) {
+    const result = await db
+      .prepare('UPDATE keywords SET muted = 1 WHERE id = ? AND org_id = ?')
+      .bind(keywordId, orgId)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
+  // Unmuting re-activates a keyword, so the capacity gate rides in the same
+  // statement as the write (same race rationale as createKeyword). changes=0
+  // is ambiguous (missing, already unmuted, or at capacity), so it is
+  // disambiguated with one follow-up read.
+  const limit = await getKeywordLimit({ db, orgId });
+  const result = await db
+    .prepare(
+      `UPDATE keywords SET muted = 0
+       WHERE id = ?1 AND org_id = ?2 AND muted = 1
+         AND (SELECT COUNT(*) FROM keywords WHERE org_id = ?2 AND muted = 0) < ?3`,
+    )
+    .bind(keywordId, orgId, limit)
     .run();
-  return (result.meta.changes ?? 0) > 0;
+  if ((result.meta.changes ?? 0) > 0) {
+    await syncKeywordUsage({ db, orgId });
+    return true;
+  }
+
+  const row = await db
+    .prepare('SELECT muted FROM keywords WHERE id = ? AND org_id = ?')
+    .bind(keywordId, orgId)
+    .first<{ muted: number }>();
+  if (!row) return false;
+  if (row.muted === 0) return true; // already active: idempotent success
+  throw new KeywordLimitError(limit);
 }
 
 /**

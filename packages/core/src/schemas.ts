@@ -109,6 +109,37 @@ export const searchMentionsQuerySchema = z.object({
 });
 export type SearchMentionsQuery = z.infer<typeof searchMentionsQuerySchema>;
 
+export const mentionStatsQuerySchema = z.object({
+  sinceDays: z.coerce.number().int().min(1).max(90).default(14),
+  source: sourceSchema.optional(),
+  keywordId: z.string().optional(),
+});
+
+const statCount = z.number().int().min(0);
+export const mentionStatsSchema = z.object({
+  sinceDays: z.number().int(),
+  total: statCount,
+  bySentiment: z.object({
+    positive: statCount,
+    neutral: statCount,
+    negative: statCount,
+    unclassified: statCount,
+  }),
+  bySource: z.array(z.object({ source: sourceSchema, count: statCount })),
+  byKeyword: z.array(z.object({ keywordId: z.string(), term: z.string(), count: statCount })),
+  /** One entry per day in the window, oldest first, zero-filled. */
+  daily: z.array(
+    z.object({
+      day: z.string(), // YYYY-MM-DD (UTC)
+      positive: statCount,
+      neutral: statCount,
+      negative: statCount,
+      unclassified: statCount,
+    }),
+  ),
+});
+export type MentionStats = z.infer<typeof mentionStatsSchema>;
+
 // ---------------------------------------------------------------------------
 // Feeds & destinations
 // ---------------------------------------------------------------------------
@@ -142,6 +173,17 @@ export const companyContextBodySchema = z.object({
   context: z.string().max(4000),
 });
 
+/** Structured company profile; the classifier context is composed from it. */
+export const companyProfileSchema = z.object({
+  name: z.string().min(1).max(80),
+  description: z.string().max(2000),
+  useCases: z.array(z.string().min(1).max(300)).max(10),
+  /** Username without the @. */
+  xAccount: z.string().max(50).nullable(),
+  linkedinAccount: z.string().max(100).nullable(),
+});
+export type CompanyProfile = z.infer<typeof companyProfileSchema>;
+
 // ---------------------------------------------------------------------------
 // Classification output (LLM contract)
 // ---------------------------------------------------------------------------
@@ -170,7 +212,105 @@ export const userSchema = z.object({
 });
 export type User = z.infer<typeof userSchema>;
 
+export const orgSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: orgRoleSchema,
+  website: z.string().nullable(),
+  brandName: z.string().nullable(),
+  logoUrl: z.string().nullable(),
+  /** False until the onboarding flow has run for this org. */
+  onboarded: z.boolean(),
+});
+export type OrgSummary = z.infer<typeof orgSummarySchema>;
+
 export const meResponseSchema = z.object({
   user: userSchema,
-  orgs: z.array(z.object({ id: z.string(), name: z.string(), role: orgRoleSchema })),
+  orgs: z.array(orgSummarySchema),
 });
+
+// ---------------------------------------------------------------------------
+// Onboarding (brand analysis of the user's website)
+// ---------------------------------------------------------------------------
+
+export const onboardingAnalyzeBodySchema = z.object({
+  website: z.string().url(),
+});
+
+/** The LLM contract for website analysis: brand profile + starter keyword
+ *  suggestions (2 space/product topics, 2 competitors). */
+export const brandAnalysisSchema = z.object({
+  brandName: z.string().min(1).max(80),
+  context: z.string().max(4000),
+  topics: z.array(z.string().min(2).max(80)).min(1).max(2),
+  competitors: z.array(z.string().min(2).max(80)).min(1).max(2),
+});
+export type BrandAnalysis = z.infer<typeof brandAnalysisSchema>;
+
+export const onboardingAnalyzeResponseSchema = brandAnalysisSchema.extend({
+  website: z.string(),
+  logoUrl: z.string().nullable(),
+});
+export type OnboardingAnalyzeResponse = z.infer<typeof onboardingAnalyzeResponseSchema>;
+
+export const onboardingCompleteBodySchema = z.object({
+  website: z.string().url(),
+  brandName: z.string().min(1).max(80),
+  logoUrl: z.string().url().nullable().optional(),
+  context: z.string().max(4000).default(''),
+  keywords: z.array(createKeywordBodySchema).max(10).default([]),
+});
+export type OnboardingCompleteBody = z.infer<typeof onboardingCompleteBodySchema>;
+/** Client-side shape (before zod defaults are applied). */
+export type OnboardingCompleteInput = z.input<typeof onboardingCompleteBodySchema>;
+
+export const onboardingCompleteResponseSchema = z.object({
+  ok: z.literal(true),
+  keywordsCreated: z.number().int().min(0),
+});
+
+// ---------------------------------------------------------------------------
+// Billing
+// ---------------------------------------------------------------------------
+
+export const billingStatusSchema = z.enum(['none', 'active', 'past_due', 'canceled']);
+export type BillingStatus = z.infer<typeof billingStatusSchema>;
+
+/** https only: z.url() alone admits javascript:/data:/http: targets, and the
+ *  checkout success_url is where Polar sends the customer after paying. The
+ *  API worker additionally enforces an origin allowlist when configured. */
+export const billingCheckoutBodySchema = z.object({
+  successUrl: z
+    .string()
+    .url()
+    .max(2000)
+    .refine((value) => value.startsWith('https://'), { message: 'successUrl must be https' }),
+});
+
+export const billingCheckoutResponseSchema = z.object({
+  url: z.string(),
+});
+
+export const billingPortalResponseSchema = z.object({
+  url: z.string(),
+});
+
+/** Current-cycle usage, the shape behind GET /v1/billing/usage and the
+ *  dashboard spend view. All counts are this org, this cycle. */
+export const usageSummarySchema = z.object({
+  cycle: z.string(),
+  status: billingStatusSchema,
+  activeKeywords: z.number().int().min(0),
+  /** High-water mark the keyword bill line uses. */
+  keywordMax: z.number().int().min(0),
+  relevantMentions: z.number().int().min(0),
+  /** Pooled allowance: POOL_PER_KEYWORD x keywordMax. */
+  includedMentions: z.number().int().min(0),
+  /** Mentions past the pool (whole units of these get billed). */
+  overageMentions: z.number().int().min(0),
+  /** Whole 1k-units of overage accrued so far. */
+  billableUnits: z.number().int().min(0),
+  /** Units already projected to Polar. */
+  billedUnits: z.number().int().min(0),
+});
+export type UsageSummary = z.infer<typeof usageSummarySchema>;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DuplicateKeywordError,
+  KeywordLimitError,
   createKeyword,
   deleteKeyword,
   listActiveTermsWithSubscribers,
@@ -18,19 +19,46 @@ describe('createKeyword', () => {
     expect(keyword.kind).toBe('brand');
     expect(keyword.muted).toBe(false);
 
-    const [, orgId, term, normalizedTerm, kind] = queries[0]!.params;
+    const insert = queries.find((q) => q.sql.startsWith('INSERT INTO keywords'));
+    expect(insert).toBeDefined();
+    const [, orgId, term, normalizedTerm, kind] = insert!.params;
     expect(orgId).toBe('org_1');
     expect(term).toBe('  Acme   Corp ');
     expect(normalizedTerm).toBe('acme corp');
     expect(kind).toBe('brand');
   });
 
+  it('raises the cycle keyword high-water mark after a create', async () => {
+    const { db, queries } = createDbStub();
+    await createKeyword({ db, orgId: 'org_1', term: 'acme', kind: 'brand' });
+    const sync = queries.find((q) => q.sql.includes('INSERT INTO usage_cycles'));
+    expect(sync).toBeDefined();
+    expect(sync!.sql).toContain('MAX(keyword_max');
+  });
+
+  it('rejects with KeywordLimitError when the guarded insert matches no row', async () => {
+    // The capacity WHERE clause rides in the INSERT itself; changes = 0 is
+    // the at-limit signal (org_billing miss -> free limit 2).
+    const { db, queries } = createDbStub((query) =>
+      query.sql.startsWith('INSERT INTO keywords') ? { changes: 0 } : {},
+    );
+    await expect(createKeyword({ db, orgId: 'org_1', term: 'acme', kind: 'brand' })).rejects.toBeInstanceOf(
+      KeywordLimitError,
+    );
+    const insert = queries.find((q) => q.sql.startsWith('INSERT INTO keywords'));
+    expect(insert!.sql).toContain('WHERE (SELECT COUNT(*) FROM keywords');
+    expect(insert!.params[6]).toBe(2);
+  });
+
   it('maps the UNIQUE(org_id, normalized_term) violation to DuplicateKeywordError', async () => {
-    const { db } = createDbStub(() => ({
-      error: new Error(
-        'D1_ERROR: UNIQUE constraint failed: keywords.org_id, keywords.normalized_term: SQLITE_CONSTRAINT',
-      ),
-    }));
+    const { db } = createDbStub((query) => {
+      if (!query.sql.startsWith('INSERT INTO keywords')) return {};
+      return {
+        error: new Error(
+          'D1_ERROR: UNIQUE constraint failed: keywords.org_id, keywords.normalized_term: SQLITE_CONSTRAINT',
+        ),
+      };
+    });
     await expect(createKeyword({ db, orgId: 'org_1', term: 'acme', kind: 'brand' })).rejects.toBeInstanceOf(
       DuplicateKeywordError,
     );
@@ -106,10 +134,48 @@ describe('deleteKeyword', () => {
 });
 
 describe('setKeywordMuted', () => {
-  it('writes 1/0 for the muted flag', async () => {
+  it('mutes unconditionally (muting is always allowed)', async () => {
     const { db, queries } = createDbStub(() => ({ changes: 1 }));
-    await setKeywordMuted({ db, orgId: 'org_1', keywordId: 'kw_1', muted: true });
-    expect(queries[0]!.params).toEqual([1, 'kw_1', 'org_1']);
+    expect(await setKeywordMuted({ db, orgId: 'org_1', keywordId: 'kw_1', muted: true })).toBe(true);
+    expect(queries[0]!.sql).toContain('SET muted = 1');
+    expect(queries[0]!.params).toEqual(['kw_1', 'org_1']);
+  });
+
+  it('unmutes through the capacity-guarded update and raises the high-water', async () => {
+    const { db, queries } = createDbStub(() => ({ changes: 1 }));
+    expect(await setKeywordMuted({ db, orgId: 'org_1', keywordId: 'kw_1', muted: false })).toBe(true);
+    const update = queries.find((q) => q.sql.includes('SET muted = 0'));
+    expect(update!.sql).toContain('AND (SELECT COUNT(*) FROM keywords');
+    expect(queries.some((q) => q.sql.includes('INSERT INTO usage_cycles'))).toBe(true);
+  });
+
+  it('throws KeywordLimitError when unmuting an existing muted keyword at capacity', async () => {
+    const { db } = createDbStub((query) => {
+      if (query.sql.includes('SET muted = 0')) return { changes: 0 };
+      if (query.sql.startsWith('SELECT muted')) return { first: { muted: 1 } };
+      return {};
+    });
+    await expect(
+      setKeywordMuted({ db, orgId: 'org_1', keywordId: 'kw_1', muted: false }),
+    ).rejects.toBeInstanceOf(KeywordLimitError);
+  });
+
+  it('treats unmuting an already-active keyword as idempotent success', async () => {
+    const { db } = createDbStub((query) => {
+      if (query.sql.includes('SET muted = 0')) return { changes: 0 };
+      if (query.sql.startsWith('SELECT muted')) return { first: { muted: 0 } };
+      return {};
+    });
+    expect(await setKeywordMuted({ db, orgId: 'org_1', keywordId: 'kw_1', muted: false })).toBe(true);
+  });
+
+  it('returns false for a missing keyword', async () => {
+    const { db } = createDbStub((query) => {
+      if (query.sql.includes('SET muted = 0')) return { changes: 0 };
+      if (query.sql.startsWith('SELECT muted')) return { first: null };
+      return {};
+    });
+    expect(await setKeywordMuted({ db, orgId: 'org_1', keywordId: 'kw_missing', muted: false })).toBe(false);
   });
 });
 

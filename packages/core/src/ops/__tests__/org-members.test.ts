@@ -44,11 +44,33 @@ describe('getUserWithOrgs', () => {
           first: { id: 'u1', email: 'a@b.co', name: 'A', createdAt: '2026-07-18T10:00:00.000Z' },
         };
       }
-      return { results: [{ id: 'org_1', name: 'Zernio', role: 'owner' }] };
+      return {
+        results: [
+          {
+            id: 'org_1',
+            name: 'Zernio',
+            role: 'owner',
+            website: 'https://zernio.com',
+            brand_name: 'Zernio',
+            logo_url: null,
+            onboarded_at: 1_700_000_000_000,
+          },
+        ],
+      };
     });
     const me = await getUserWithOrgs({ db, userId: 'u1' });
     expect(me?.user.createdAt).toBe(Date.parse('2026-07-18T10:00:00.000Z'));
-    expect(me?.orgs).toEqual([{ id: 'org_1', name: 'Zernio', role: 'owner' }]);
+    expect(me?.orgs).toEqual([
+      {
+        id: 'org_1',
+        name: 'Zernio',
+        role: 'owner',
+        website: 'https://zernio.com',
+        brandName: 'Zernio',
+        logoUrl: null,
+        onboarded: true,
+      },
+    ]);
   });
 
   it('returns null for unknown users', async () => {

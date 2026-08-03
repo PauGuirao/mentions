@@ -5,7 +5,7 @@
  * org_members, and org-scoped ops only ever see the orgId.
  */
 import { newId } from '../ids';
-import type { User } from '../schemas';
+import type { OrgSummary, User } from '../schemas';
 
 /** Auto-provision a workspace for a fresh signup (Better Auth user.create
  *  hook). Safe to call twice: bails if the user already has a membership. */
@@ -44,19 +44,38 @@ export async function getOrgForUser(args: { db: D1Database; userId: string }): P
   return row?.org_id ?? null;
 }
 
+interface OrgSummaryRow {
+  id: string;
+  name: string;
+  role: 'owner' | 'member';
+  website: string | null;
+  brand_name: string | null;
+  logo_url: string | null;
+  onboarded_at: number | null;
+}
+
 export async function listOrgsForUser(args: {
   db: D1Database;
   userId: string;
-}): Promise<Array<{ id: string; name: string; role: 'owner' | 'member' }>> {
+}): Promise<OrgSummary[]> {
   const { results } = await args.db
     .prepare(
-      `SELECT o.id, o.name, om.role FROM org_members om
+      `SELECT o.id, o.name, om.role, o.website, o.brand_name, o.logo_url, o.onboarded_at
+       FROM org_members om
        JOIN orgs o ON o.id = om.org_id
        WHERE om.user_id = ? ORDER BY om.created_at ASC`,
     )
     .bind(args.userId)
-    .all<{ id: string; name: string; role: 'owner' | 'member' }>();
-  return results;
+    .all<OrgSummaryRow>();
+  return results.map((row) => ({
+    id: row.id,
+    name: row.name,
+    role: row.role,
+    website: row.website,
+    brandName: row.brand_name,
+    logoUrl: row.logo_url,
+    onboarded: row.onboarded_at !== null,
+  }));
 }
 
 interface BetterAuthUserRow {
@@ -76,7 +95,7 @@ export async function getUserWithOrgs(args: {
   userId: string;
 }): Promise<{
   user: User;
-  orgs: Array<{ id: string; name: string; role: 'owner' | 'member' }>;
+  orgs: OrgSummary[];
 } | null> {
   const { db, userId } = args;
   const row = await db
