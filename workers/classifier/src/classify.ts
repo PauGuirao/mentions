@@ -6,7 +6,10 @@
 import { classificationSchema, type Classification } from '@mentions/core/schemas';
 
 /** The one place the model id lives. */
-export const CLASSIFIER_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+// gpt-oss-20b: ~2.3x cheaper than llama-3.3-70b ($0.20/$0.30 vs $0.29/$2.25
+// per M tokens) and strong at rubric-following JSON classification. Same
+// messages-in / response-out contract.
+export const CLASSIFIER_MODEL = '@cf/openai/gpt-oss-20b';
 
 /** Matches at/above go to delivery; below are kept as state 'filtered'. */
 export const RELEVANCE_THRESHOLD = 40;

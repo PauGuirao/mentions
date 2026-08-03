@@ -70,7 +70,9 @@ export class PolarClient {
   constructor(options: PolarClientOptions) {
     this.baseUrl = SERVERS[options.server];
     this.accessToken = options.accessToken;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Wrapped, not assigned: calling a bare global fetch reference through a
+    // property rebinds `this` and workerd throws "Illegal invocation".
+    this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
   }
 
   private async post<T>(path: string, body: unknown, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<T> {

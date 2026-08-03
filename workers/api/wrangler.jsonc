@@ -28,7 +28,10 @@
     // Public origin auth redirects resolve against; secrets
     // (BETTER_AUTH_SECRET, BETTER_AUTH_API_KEY, GOOGLE_CLIENT_ID/SECRET)
     // go via `wrangler secret put`, never here.
-    "BETTER_AUTH_URL": "https://mentions-api.guiraocastells.workers.dev",
-    "TRUSTED_ORIGINS": "http://localhost:5173"
+    // The dashboard proxies /v1/* through its own origin (service binding),
+    // so the browser-facing auth origin is app.mentio.dev, not the api's
+    // workers.dev host.
+    "BETTER_AUTH_URL": "https://app.mentio.dev",
+    "TRUSTED_ORIGINS": "http://localhost:5173,https://app.mentio.dev,https://mentio.dev,https://mentions-web.guiraocastells.workers.dev"
   }
 }

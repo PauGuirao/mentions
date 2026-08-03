@@ -13,8 +13,10 @@ const firehoseStub = (env: Env): DurableObjectStub<FirehoseConsumer> =>
 
 export default {
   async fetch(request, env): Promise<Response> {
+    // Fail closed when the secret is unset: without this, the template
+    // literal would accept the literal header "Bearer undefined".
     const auth = request.headers.get('authorization');
-    if (auth !== `Bearer ${env.ADMIN_SECRET}`) {
+    if (!env.ADMIN_SECRET || auth !== `Bearer ${env.ADMIN_SECRET}`) {
       return new Response('unauthorized', { status: 401 });
     }
 

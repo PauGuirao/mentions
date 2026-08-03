@@ -73,7 +73,10 @@ const PER_TERM_CADENCES = [
   { source: 'github', cadenceMinutes: 5 }, // 300s
   { source: 'stackoverflow', cadenceMinutes: 1440 }, // 86400s
   { source: 'reddit', cadenceMinutes: 10 }, // 600s
-  { source: 'x', cadenceMinutes: 60 }, // 3600s, kept coarse to respect the read budget
+  // X bills per post RETURNED (empty polls are free, since_id never
+  // refetches), so cadence is a latency knob, not a cost knob; hourly is
+  // just a conservative default.
+  { source: 'x', cadenceMinutes: 60 },
   // YouTube search costs 100 quota units against a 10k/day default quota =
   // ~100 searches/day total. Twice daily per term keeps headroom to ~50 terms.
   { source: 'youtube', cadenceMinutes: 720 },

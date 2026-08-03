@@ -17,7 +17,7 @@ import { authClient, markLoggedIn } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
-    if (hasCredentials()) throw redirect({ to: '/mentions' });
+    if (hasCredentials()) throw redirect({ to: '/' });
   },
   component: LoginPage,
 });
@@ -77,7 +77,7 @@ function LoginPage() {
       markLoggedIn();
       // Fresh signups go straight to onboarding; the root layout gate also
       // catches any logged-in user whose workspace was never onboarded.
-      await navigate({ to: mode === 'signup' ? '/onboarding' : '/mentions' });
+      await navigate({ to: mode === 'signup' ? '/onboarding' : '/' });
     } finally {
       setPending(false);
     }
@@ -90,7 +90,7 @@ function LoginPage() {
     markLoggedIn();
     const { error } = await authClient.signIn.social({
       provider: 'google',
-      callbackURL: '/mentions',
+      callbackURL: '/',
     });
     if (error) {
       toast.error(error.message ?? 'Google sign-in failed');

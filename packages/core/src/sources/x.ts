@@ -32,9 +32,12 @@ const PAGE_MAX = 100;
 /** The API rejects max_results below 10. */
 const PAGE_MIN = 10;
 
-/** Default monthly read cap; sized to the Basic tier's 10k posts/month with
- *  headroom for the meter's soft (last-write-wins) accounting. Override with
- *  the X_MONTHLY_READ_CAP var on the ingest worker. */
+/** Default monthly read cap. Since Feb 2026 the X API is pay-per-use
+ *  ($0.005/post read, prepaid credits), so this is a SPEND cap: 9k reads
+ *  ~= $45/month, with headroom under a $50 budget for the meter's soft
+ *  (last-write-wins) accounting. Override with the X_MONTHLY_READ_CAP var
+ *  on the ingest worker; set a matching spending limit in the X console as
+ *  the second belt. */
 export const X_DEFAULT_MONTHLY_READ_CAP = 9_000;
 
 const xTweetSchema = z.object({

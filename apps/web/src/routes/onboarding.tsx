@@ -147,7 +147,7 @@ function OnboardingPage() {
   const finish = async () => {
     await queryClient.invalidateQueries({ queryKey: ['me'] });
     await queryClient.invalidateQueries({ queryKey: ['keywords'] });
-    await navigate({ to: '/mentions' });
+    await navigate({ to: '/' });
   };
 
   const completeMutation = useMutation({

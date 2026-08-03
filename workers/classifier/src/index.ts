@@ -41,7 +41,9 @@ interface ClassifyRow {
 
 async function runModel(env: Env, messages: ChatMessage[]): Promise<string | null> {
   try {
-    const output = await env.AI.run(CLASSIFIER_MODEL, { messages, max_tokens: 400 });
+    // Headroom for gpt-oss reasoning tokens ahead of the JSON: truncated
+    // output would burn the one retry. Output is cheap ($0.30/M).
+    const output = await env.AI.run(CLASSIFIER_MODEL, { messages, max_tokens: 800 });
     return extractResponseText(output);
   } catch (err) {
     console.error('[classifier] AI.run failed', err instanceof Error ? err.message : err);

@@ -11,7 +11,9 @@
     "producers": [{ "binding": "RAW_ITEMS", "queue": "mentions-raw-items" }]
   },
   // Hourly belt-and-braces: scheduled handler re-starts the firehose DO.
-  "triggers": { "crons": ["0 * * * *"] },
+  // Firehose paused (2026-08-03): cron removed so the watchdog cannot revive
+  // the stream. Restore ["0 * * * *"] to turn Bluesky back on.
+  "triggers": { "crons": [] },
   "vars": {
     // Placeholder for local dev only — set the real value with
   },
