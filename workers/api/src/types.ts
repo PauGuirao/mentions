@@ -1,6 +1,8 @@
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
+  /** Workers AI, used by onboarding website analysis. */
+  AI: Ai;
   /** Public origin auth redirects resolve against (basePath /v1/auth). */
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
@@ -11,6 +13,13 @@ export interface Env {
   TRUSTED_ORIGINS?: string;
   /** Better Auth hosted dashboard (Infra) key; dash plugin off when unset. */
   BETTER_AUTH_API_KEY?: string;
+  /** Billing switches on when all three are set (secret put, no deploy). */
+  POLAR_ACCESS_TOKEN?: string;
+  POLAR_WEBHOOK_SECRET?: string;
+  /** Polar product carrying the keyword + mention metered prices. */
+  POLAR_PRODUCT_ID?: string;
+  /** 'sandbox' (default) or 'production'. */
+  POLAR_SERVER?: string;
 }
 
 /** Hono generics: bindings + per-request variables set by the auth middleware.

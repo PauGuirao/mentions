@@ -1,6 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import {
   DuplicateKeywordError,
+  KeywordLimitError,
   createKeyword,
   deleteKeyword,
   listKeywords,
@@ -28,6 +29,7 @@ const createKeywordRoute = createRoute({
   responses: {
     201: { content: { 'application/json': { schema: keywordSchema } }, description: 'The created keyword' },
     401: errorResponse('Missing or invalid API key'),
+    402: errorResponse('Keyword limit reached for the current plan'),
     409: errorResponse('A keyword with the same normalized term already exists for this org'),
   },
 });
@@ -80,6 +82,7 @@ const muteKeywordRoute = createRoute({
       description: 'Mute state updated',
     },
     401: errorResponse('Missing or invalid API key'),
+    402: errorResponse('Unmuting would exceed the keyword limit for the current plan'),
     404: errorResponse('Keyword not found'),
   },
 });
@@ -94,6 +97,9 @@ keywordsRouter.openapi(createKeywordRoute, async (c) => {
   } catch (err) {
     if (err instanceof DuplicateKeywordError) {
       return c.json(errorBody('duplicate_keyword', err.message), 409);
+    }
+    if (err instanceof KeywordLimitError) {
+      return c.json(errorBody('keyword_limit_reached', err.message), 402);
     }
     throw err;
   }
@@ -116,9 +122,16 @@ keywordsRouter.openapi(deleteKeywordRoute, async (c) => {
 keywordsRouter.openapi(muteKeywordRoute, async (c) => {
   const { keywordId } = c.req.valid('param');
   const { muted } = c.req.valid('json');
-  const updated = await setKeywordMuted({ db: c.env.DB, orgId: c.get('orgId'), keywordId, muted });
-  if (!updated) {
-    return c.json(errorBody('not_found', 'Keyword not found'), 404);
+  try {
+    const updated = await setKeywordMuted({ db: c.env.DB, orgId: c.get('orgId'), keywordId, muted });
+    if (!updated) {
+      return c.json(errorBody('not_found', 'Keyword not found'), 404);
+    }
+    return c.json({ id: keywordId, muted }, 200);
+  } catch (err) {
+    if (err instanceof KeywordLimitError) {
+      return c.json(errorBody('keyword_limit_reached', err.message), 402);
+    }
+    throw err;
   }
-  return c.json({ id: keywordId, muted }, 200);
 });

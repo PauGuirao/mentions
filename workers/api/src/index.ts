@@ -8,10 +8,13 @@ import { getAuth } from './better-auth';
 import { errorBody } from './errors';
 import { createRouter } from './router';
 import { apiKeysRouter } from './routes/api-keys';
+import { billingRouter, registerPolarWebhook } from './routes/billing';
 import { companyRouter } from './routes/company';
 import { keywordsRouter } from './routes/keywords';
 import { mentionsRouter } from './routes/mentions';
 import { meRouter } from './routes/me';
+import { onboardingRouter } from './routes/onboarding';
+import { statsRouter } from './routes/stats';
 
 const app = createRouter();
 
@@ -42,6 +45,10 @@ v1.route('/', mentionsRouter);
 v1.route('/', companyRouter);
 v1.route('/', apiKeysRouter);
 v1.route('/', meRouter);
+v1.route('/', onboardingRouter);
+v1.route('/', statsRouter);
+v1.route('/', billingRouter);
+registerPolarWebhook(v1);
 
 app.route('/v1', v1);
 

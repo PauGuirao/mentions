@@ -5,7 +5,9 @@ import { getAuth } from './better-auth';
 import { errorBody } from './errors';
 import type { AppEnv } from './types';
 
-const PUBLIC_PATHS = new Set(['/v1/health', '/v1/openapi.json']);
+/** The Polar webhook authenticates via HMAC signature inside its handler,
+ *  not via bearer credentials. */
+const PUBLIC_PATHS = new Set(['/v1/health', '/v1/openapi.json', '/v1/webhooks/polar']);
 /** Better Auth owns this namespace; its handler does its own auth. */
 const AUTH_PREFIX = '/v1/auth/';
 

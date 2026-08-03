@@ -18,6 +18,9 @@ export type ErrorCode =
   | 'duplicate_user'
   | 'invalid_credentials'
   | 'invalid_cursor'
+  | 'keyword_limit_reached'
+  | 'billing_not_configured'
+  | 'invalid_signature'
   | 'internal_error';
 
 export const errorBody = (code: ErrorCode, message: string) => ({ error: { code, message } });

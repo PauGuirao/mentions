@@ -20,6 +20,10 @@
       "id": "563524d26a444c0ca62c88b9616065c6"
     }
   ],
+  // Website analysis at onboarding. Workers AI runs remotely even in local dev.
+  "ai": {
+    "binding": "AI"
+  },
   "vars": {
     // Public origin auth redirects resolve against; secrets
     // (BETTER_AUTH_SECRET, BETTER_AUTH_API_KEY, GOOGLE_CLIENT_ID/SECRET)
