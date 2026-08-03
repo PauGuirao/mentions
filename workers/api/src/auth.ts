@@ -6,8 +6,14 @@ import { errorBody } from './errors';
 import type { AppEnv } from './types';
 
 /** The Polar webhook authenticates via HMAC signature inside its handler,
- *  not via bearer credentials. */
-const PUBLIC_PATHS = new Set(['/v1/health', '/v1/openapi.json', '/v1/webhooks/polar']);
+ *  and the Slack OAuth callback via its single-use state nonce; neither
+ *  carries bearer credentials. */
+const PUBLIC_PATHS = new Set([
+  '/v1/health',
+  '/v1/openapi.json',
+  '/v1/webhooks/polar',
+  '/v1/slack/callback',
+]);
 /** Better Auth owns this namespace; its handler does its own auth. */
 const AUTH_PREFIX = '/v1/auth/';
 

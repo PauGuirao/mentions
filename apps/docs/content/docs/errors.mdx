@@ -27,6 +27,8 @@ All errors use one envelope with a stable machine-readable code:
 | `keyword_limit_reached` | 402 | Creating or unmuting the keyword would exceed your plan's limit |
 | `invalid_signature` | 401 | Webhook signature verification failed (Polar webhook endpoint only) |
 | `billing_not_configured` | 503 | Billing endpoints called on a deployment without billing credentials |
+| `slack_not_configured` | 503 | Slack endpoints called on a deployment without Slack app credentials |
+| `slack_not_connected` | 404 | Slack action attempted before connecting a workspace (or after the token was revoked) |
 | `internal_error` | 500 | Unexpected server error |
 
 Handle errors by branching on `error.code`, not on the message; messages can change, codes will not.

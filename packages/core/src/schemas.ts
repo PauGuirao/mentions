@@ -164,6 +164,45 @@ export const destinationConfigSchema = z.discriminatedUnion('type', [
 ]);
 
 // ---------------------------------------------------------------------------
+// Slack integration (OAuth install + managed notifications)
+// ---------------------------------------------------------------------------
+
+export const slackStatusSchema = z.object({
+  /** Whether this deployment has Slack OAuth credentials at all. */
+  configured: z.boolean(),
+  connected: z.boolean(),
+  teamName: z.string().nullable(),
+  /** The managed notification config; null until a channel is picked. */
+  notifications: z
+    .object({
+      channelId: z.string(),
+      channelName: z.string(),
+      minRelevance: z.number().int().min(0).max(100).nullable(),
+    })
+    .nullable(),
+});
+export type SlackStatus = z.infer<typeof slackStatusSchema>;
+
+export const slackChannelsResponseSchema = z.object({
+  channels: z.array(z.object({ id: z.string(), name: z.string() })),
+});
+export type SlackChannelsResponse = z.infer<typeof slackChannelsResponseSchema>;
+
+export const slackNotificationsBodySchema = z.object({
+  channelId: z.string().min(1).max(40),
+  /** Display name captured at pick time; Slack renames do not break sends
+   *  (delivery goes to the id), only the label. */
+  channelName: z.string().min(1).max(90),
+  minRelevance: z.coerce.number().int().min(0).max(100).optional(),
+});
+export type SlackNotificationsBody = z.infer<typeof slackNotificationsBodySchema>;
+
+export const slackInstallStartResponseSchema = z.object({
+  /** Slack authorize URL the client should navigate to. */
+  url: z.string(),
+});
+
+// ---------------------------------------------------------------------------
 // Company context
 // ---------------------------------------------------------------------------
 
@@ -280,11 +319,23 @@ export type BillingStatus = z.infer<typeof billingStatusSchema>;
  *  checkout success_url is where Polar sends the customer after paying. The
  *  API worker additionally enforces an origin allowlist when configured. */
 export const billingCheckoutBodySchema = z.object({
+  /** https everywhere; plain http only for localhost so the checkout flow is
+   *  testable in local dev (the route's origin allowlist still applies). */
   successUrl: z
     .string()
     .url()
     .max(2000)
-    .refine((value) => value.startsWith('https://'), { message: 'successUrl must be https' }),
+    .refine(
+      (value) => {
+        if (value.startsWith('https://')) return true;
+        try {
+          return new URL(value).hostname === 'localhost';
+        } catch {
+          return false;
+        }
+      },
+      { message: 'successUrl must be https' },
+    ),
 });
 
 export const billingCheckoutResponseSchema = z.object({

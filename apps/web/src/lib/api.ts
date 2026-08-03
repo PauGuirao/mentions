@@ -13,6 +13,9 @@ import type {
   OnboardingCompleteInput,
   OrgSummary,
   SearchMentionsQuery,
+  SlackChannelsResponse,
+  SlackNotificationsBody,
+  SlackStatus,
   Source,
   User,
 } from '@mentions/core/schemas';
@@ -156,6 +159,30 @@ export const api = {
 
   setCompanyContext(context: string): Promise<{ context: string }> {
     return request('/company', { method: 'PUT', body: JSON.stringify({ context }) });
+  },
+
+  getSlackStatus(): Promise<SlackStatus> {
+    return request('/slack/status');
+  },
+
+  startSlackInstall(): Promise<{ url: string }> {
+    return request('/slack/install', { method: 'POST' });
+  },
+
+  listSlackChannels(): Promise<SlackChannelsResponse> {
+    return request('/slack/channels');
+  },
+
+  setSlackNotifications(body: SlackNotificationsBody): Promise<SlackStatus> {
+    return request('/slack/notifications', { method: 'PUT', body: JSON.stringify(body) });
+  },
+
+  disableSlackNotifications(): Promise<SlackStatus> {
+    return request('/slack/notifications', { method: 'DELETE' });
+  },
+
+  disconnectSlack(): Promise<{ disconnected: boolean }> {
+    return request('/slack', { method: 'DELETE' });
   },
 
   getStats(

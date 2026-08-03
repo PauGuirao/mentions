@@ -14,6 +14,7 @@ import { keywordsRouter } from './routes/keywords';
 import { mentionsRouter } from './routes/mentions';
 import { meRouter } from './routes/me';
 import { onboardingRouter } from './routes/onboarding';
+import { registerSlackCallback, slackRouter } from './routes/slack';
 import { statsRouter } from './routes/stats';
 
 const app = createRouter();
@@ -48,7 +49,9 @@ v1.route('/', meRouter);
 v1.route('/', onboardingRouter);
 v1.route('/', statsRouter);
 v1.route('/', billingRouter);
+v1.route('/', slackRouter);
 registerPolarWebhook(v1);
+registerSlackCallback(v1);
 
 app.route('/v1', v1);
 

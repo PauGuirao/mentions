@@ -21,6 +21,8 @@ export type ErrorCode =
   | 'keyword_limit_reached'
   | 'billing_not_configured'
   | 'invalid_signature'
+  | 'slack_not_configured'
+  | 'slack_not_connected'
   | 'internal_error';
 
 export const errorBody = (code: ErrorCode, message: string) => ({ error: { code, message } });

@@ -20,6 +20,10 @@ export interface Env {
   POLAR_PRODUCT_ID?: string;
   /** 'sandbox' (default) or 'production'. */
   POLAR_SERVER?: string;
+  /** Slack integration switches on when both are set (secret put, no deploy).
+   *  The Slack app's redirect URL must list <api-origin>/v1/slack/callback. */
+  SLACK_CLIENT_ID?: string;
+  SLACK_CLIENT_SECRET?: string;
 }
 
 /** Hono generics: bindings + per-request variables set by the auth middleware.

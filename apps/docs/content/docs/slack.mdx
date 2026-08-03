@@ -1,0 +1,84 @@
+---
+title: Slack integration
+description: Connect a workspace and get relevant mentions posted to a channel.
+icon: Slack
+---
+
+Mentions ships a Slack bot that posts new relevant mentions to a channel you pick. Connecting is a standard OAuth install: no tokens to copy, and disconnecting revokes the bot's access.
+
+## Connecting from the dashboard
+
+The short path is Settings, then Slack notifications:
+
+1. **Connect Slack**: you are sent to Slack's consent screen and back.
+2. **Pick a channel** and a relevance threshold (all relevant mentions, or only 50+, 70+, 85+).
+3. **Turn on notifications.**
+
+The bot can post to any public channel without being invited. For private channels, invite `@Mentions` to the channel first; the picker only lists public ones.
+
+## What lands in the channel
+
+Each matching mention arrives as a compact message:
+
+```
+New mention of "your product" on hackernews
+Positive firsthand report of building on the product.
+https://news.ycombinator.com/item?id=...
+```
+
+Delivery follows the pipeline rules:
+
+- Only classified mentions that pass your threshold are sent; filtered noise never reaches Slack.
+- Mentions you triage as `ignored` or `done` before delivery are skipped.
+- Transient failures (rate limits, Slack hiccups) retry up to 5 times; a revoked token or deleted channel fails permanently and is surfaced in delivery history instead of retrying forever.
+
+## Connecting via the API
+
+Everything the dashboard does is plain REST:
+
+```bash
+# 1. Start the install; send the user to the returned URL.
+curl -X POST "$MENTIONS_API_URL/v1/slack/install" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY"
+# { "url": "https://slack.com/oauth/v2/authorize?..." }
+
+# 2. After the user authorizes, check the connection.
+curl -H "Authorization: Bearer $MENTIONS_API_KEY" "$MENTIONS_API_URL/v1/slack/status"
+# { "configured": true, "connected": true, "teamName": "Acme", "notifications": null }
+
+# 3. List channels and point notifications at one.
+curl -H "Authorization: Bearer $MENTIONS_API_KEY" "$MENTIONS_API_URL/v1/slack/channels"
+curl -X PUT "$MENTIONS_API_URL/v1/slack/notifications" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "channelId": "C0123ABC", "channelName": "brand-mentions", "minRelevance": 70 }'
+```
+
+`DELETE /v1/slack/notifications` turns notifications off but keeps the workspace connected; `DELETE /v1/slack` disconnects entirely and revokes the bot token. See the [Slack reference](/api/slack/start-slack-install) for full schemas.
+
+## Errors
+
+| Code | Status | When |
+| --- | --- | --- |
+| `slack_not_configured` | 503 | The deployment has no Slack app credentials |
+| `slack_not_connected` | 404 | No workspace connected yet, or the token was revoked on Slack's side |
+
+## Self-hosting: configuring the Slack app
+
+The integration switches on when the API worker has Slack app credentials; without them, Slack endpoints return `503 slack_not_configured` and everything else keeps working.
+
+1. Create an app at [api.slack.com/apps](https://api.slack.com/apps) (From scratch).
+2. Under OAuth and Permissions, add the bot token scopes `chat:write`, `chat:write.public`, and `channels:read`.
+3. Add `https://<your-api-host>/v1/slack/callback` to the app's redirect URLs.
+4. Set the credentials on the API worker:
+
+```bash
+wrangler secret put SLACK_CLIENT_ID
+wrangler secret put SLACK_CLIENT_SECRET
+```
+
+<Callout title="Local development">
+  Slack requires https redirect URLs, so the OAuth round-trip cannot complete against plain
+  http://localhost. Use an https tunnel to your local API worker, or test the flow on a deployed
+  environment; every other Slack endpoint works locally.
+</Callout>

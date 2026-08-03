@@ -16,6 +16,13 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError, api, getApiKey, getApiUrl, hasApiKey, hasCredentials, setApiKey, setApiUrl } from '@/lib/api';
 
@@ -100,9 +107,229 @@ function SettingsPage() {
           </CardFooter>
         </Card>
 
+        <SlackCard />
+
         <CompanyProfileCard />
       </div>
     </div>
+  );
+}
+
+const RELEVANCE_ITEMS: Record<string, string> = {
+  '0': 'All relevant mentions',
+  '50': 'Relevance 50 and up',
+  '70': 'Relevance 70 and up',
+  '85': 'Relevance 85 and up',
+};
+
+function SlackCard() {
+  const queryClient = useQueryClient();
+  const [channelId, setChannelId] = useState('');
+  const [minRelevance, setMinRelevance] = useState('50');
+
+  const statusQuery = useQuery({
+    queryKey: ['slackStatus'],
+    queryFn: api.getSlackStatus,
+    enabled: hasCredentials(),
+  });
+  const status = statusQuery.data;
+  const connected = status?.connected ?? false;
+
+  const channelsQuery = useQuery({
+    queryKey: ['slackChannels'],
+    queryFn: api.listSlackChannels,
+    enabled: hasCredentials() && connected,
+  });
+  const channels = channelsQuery.data?.channels ?? [];
+
+  // Seed the form from the saved config once status arrives.
+  useEffect(() => {
+    const saved = statusQuery.data?.notifications;
+    if (!saved) return;
+    setChannelId(saved.channelId);
+    setMinRelevance(saved.minRelevance === null ? '0' : String(saved.minRelevance));
+  }, [statusQuery.data]);
+
+  // The OAuth callback lands back here with ?slack=connected|error|cancelled.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('slack');
+    if (!result) return;
+    if (result === 'connected') toast.success('Slack workspace connected');
+    else if (result === 'cancelled') toast('Slack connection cancelled');
+    else toast.error('Slack connection failed. Try again.');
+    params.delete('slack');
+    const rest = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : ''));
+    void queryClient.invalidateQueries({ queryKey: ['slackStatus'] });
+  }, [queryClient]);
+
+  const connectMutation = useMutation({
+    mutationFn: api.startSlackInstall,
+    onSuccess: ({ url }) => {
+      window.location.href = url;
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiError && err.status === 503
+          ? 'Slack is not configured on this deployment.'
+          : 'Could not start the Slack install.',
+      ),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const channel =
+        channels.find((c) => c.id === channelId) ??
+        (status?.notifications?.channelId === channelId
+          ? { id: channelId, name: status.notifications.channelName }
+          : null);
+      if (!channel) throw new Error('Pick a channel first');
+      const min = Number(minRelevance);
+      return api.setSlackNotifications({
+        channelId: channel.id,
+        channelName: channel.name,
+        ...(min > 0 ? { minRelevance: min } : {}),
+      });
+    },
+    onSuccess: (next) => {
+      toast.success('Slack notifications are on');
+      queryClient.setQueryData(['slackStatus'], next);
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : 'Failed to save notifications'),
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: api.disableSlackNotifications,
+    onSuccess: (next) => {
+      toast.success('Slack notifications turned off');
+      queryClient.setQueryData(['slackStatus'], next);
+      setChannelId('');
+    },
+    onError: () => toast.error('Failed to turn off notifications'),
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: api.disconnectSlack,
+    onSuccess: () => {
+      toast.success('Slack disconnected');
+      setChannelId('');
+      void queryClient.invalidateQueries({ queryKey: ['slackStatus'] });
+      void queryClient.invalidateQueries({ queryKey: ['slackChannels'] });
+    },
+    onError: () => toast.error('Failed to disconnect Slack'),
+  });
+
+  const busy =
+    saveMutation.isPending || disableMutation.isPending || disconnectMutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Slack notifications</CardTitle>
+        <CardDescription>
+          Connect a workspace and the Mentions bot posts new relevant mentions to a channel you
+          pick. Public channels work without inviting the bot.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {!connected ? (
+          <p className="text-sm text-muted-foreground">
+            {status?.configured === false
+              ? 'This deployment has no Slack app credentials configured.'
+              : 'No workspace connected yet.'}
+          </p>
+        ) : (
+          <>
+            <p className="text-sm">
+              Connected to <span className="font-medium">{status?.teamName}</span>
+              {status?.notifications ? (
+                <span className="text-muted-foreground">
+                  {' '}
+                  , posting to #{status.notifications.channelName}
+                </span>
+              ) : (
+                <span className="text-muted-foreground"> , notifications off</span>
+              )}
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Channel</Label>
+                <Select
+                  items={Object.fromEntries(channels.map((c) => [c.id, `#${c.name}`]))}
+                  value={channelId || null}
+                  onValueChange={(value) => setChannelId(value ?? '')}
+                >
+                  <SelectTrigger disabled={channelsQuery.isPending}>
+                    <SelectValue placeholder="Pick a channel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {channels.map((channel) => (
+                      <SelectItem key={channel.id} value={channel.id}>
+                        #{channel.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Notify for</Label>
+                <Select
+                  items={RELEVANCE_ITEMS}
+                  value={minRelevance}
+                  onValueChange={(value) => setMinRelevance(value ?? '0')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(RELEVANCE_ITEMS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+      <CardFooter className="gap-2">
+        {!connected ? (
+          <Button
+            onClick={() => connectMutation.mutate()}
+            disabled={
+              !hasCredentials() ||
+              statusQuery.isPending ||
+              connectMutation.isPending ||
+              status?.configured === false
+            }
+          >
+            {connectMutation.isPending ? 'Redirecting...' : 'Connect Slack'}
+          </Button>
+        ) : (
+          <>
+            <Button onClick={() => saveMutation.mutate()} disabled={busy || channelId === ''}>
+              {saveMutation.isPending
+                ? 'Saving...'
+                : status?.notifications
+                  ? 'Update notifications'
+                  : 'Turn on notifications'}
+            </Button>
+            {status?.notifications ? (
+              <Button variant="outline" onClick={() => disableMutation.mutate()} disabled={busy}>
+                Turn off
+              </Button>
+            ) : null}
+            <Button variant="ghost" onClick={() => disconnectMutation.mutate()} disabled={busy}>
+              Disconnect
+            </Button>
+          </>
+        )}
+      </CardFooter>
+    </Card>
   );
 }
 
