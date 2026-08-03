@@ -20,6 +20,55 @@ Stack Overflow, DEV in MVP). Octolens-class product. Everything runs on Cloudfla
    → `RawItem[]`. Transport is either `direct` (official API) or `provider`
    (scrape vendor) — nothing outside the adapter may know which.
 
+## Billing (Polar)
+
+One bill, no add-ons: keywords are PRORATED PER DAY (EUR 5/30 per keyword-day,
+so a full month = EUR 5) + EUR 5 per whole 1,000 relevant mentions past the
+pooled allowance (500 x keyword max, pooled org-wide). Partial units are
+forgiven. Pool growth applies PROSPECTIVELY: an already-billed unit stays
+billed (standard quota semantics). Cycles are calendar-month UTC; the invoice
+is Polar summing the period's events.
+
+6. **D1 meters; Polar receives append-only daily facts.** `usage_cycles` +
+   `billable_mentions` are the billing source of truth. A once-per-UTC-day
+   scheduler tick (KV-gated; the mark is written only after success) emits:
+   one `keyword_days` event per active org (that day's count — a missed day
+   is an unbilled day, never a made-up one), mention units crossed since the
+   last tick, and a closeout of prior unsettled cycles. Only events that can
+   never become wrong later may be emitted — Polar meters cannot retract.
+   Deterministic `external_id`s make every re-run free. Never call Polar from
+   the request/pipeline hot path; only the scheduler and the API worker
+   (checkout/portal/webhook) hold Polar credentials.
+7. **Only relevant mentions are ever billable.** The billing record happens at
+   the classifier's matched→classified transition (exactly-once via the state
+   machine + `billable_mentions` PK; the repair path re-records idempotently).
+   Filtered noise is free BY DESIGN — that is the positioning against
+   competitors who count it.
+8. **Billing errors favor the customer.** A crash window may under-count one
+   mention; nothing may ever over-bill. Tick ordering: ingest events first,
+   then advance `billed_units` (MAX-guarded, never backwards). The first-ever
+   activation (`none`→`active` only — dunning recoveries and re-subscribes
+   stay billable) baselines the current cycle BEFORE the status flip (so the
+   daily tick can never see an active org with unforgiven free-period usage):
+   keyword_max resets to the current count, free-period overage is forgiven
+   with CEIL rounding. Webhooks guard against Polar's out-of-order retries:
+   an old subscription's cancel never clobbers the active replacement, and a
+   stale `active` never revives the same canceled subscription.
+9. **Plan gating lives in core ops**, not routes, and the capacity check rides
+   IN the write statement (`createKeyword`/unmute guard via `WHERE (SELECT
+   COUNT...) < limit`) — a separate read-then-write races concurrent requests
+   past the limit. Free = 2 keywords, active subscription = 100. Routes only
+   translate `KeywordLimitError` → 402.
+
+Polar setup (dashboard, once per env): one subscription product with two
+metered prices — meter `keyword_days` (Sum over `count`, EUR 0.1667/unit =
+EUR 5/30 per keyword-day) and meter `mention_units` (Count, EUR 5/unit).
+Enable via secrets, no deploy:
+`POLAR_ACCESS_TOKEN` + `POLAR_SERVER` (scheduler, api), `POLAR_WEBHOOK_SECRET`
++ `POLAR_PRODUCT_ID` (api). Webhook endpoint: `POST /v1/webhooks/polar`
+(Standard Webhooks HMAC, raw-body verification — keep it out of body-parsing
+middleware and the OpenAPI spec).
+
 ## Stack
 
 - Workers + Queues + D1 + KV + R2 + Durable Objects (Bluesky firehose) + Cron.
