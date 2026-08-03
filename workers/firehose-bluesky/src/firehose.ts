@@ -57,11 +57,11 @@ export class FirehoseConsumer extends DurableObject<Env> {
   private connecting = false;
   private consecutiveFailures = 0;
   private nextConnectAttemptAt = 0;
-  private reconnectTimer: number | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   private batch: RawItem[] = [];
   private batchTextUnits = 0;
-  private flushTimer: number | null = null;
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private flushing = false;
 
   private cursor: number | null = null;

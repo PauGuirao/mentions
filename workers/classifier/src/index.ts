@@ -9,6 +9,7 @@
  *   matched -> classified with relevance NULL + ai_note 'classification_failed'
  *              (LLM unusable twice; the pipeline never blocks on the model)
  */
+import { recordBillableMention } from '@mentions/core/ops/billing';
 import { QUEUES, classifyJobSchema, type DeliverJob } from '@mentions/core/pipeline';
 import type { Classification } from '@mentions/core/schemas';
 import {
@@ -92,9 +93,11 @@ async function handleJob(env: Env, job: { mentionMatchId: string; orgId: string 
   if (row.state !== 'matched') {
     // Idempotency on redelivery: someone already moved this match on. One
     // repair case: a previous run classified above threshold but crashed
-    // before the deliver enqueue. Re-sending is safe because the deliverer
-    // dedupes on deliveries(destination_id, mention_match_id).
+    // before the billing record / deliver enqueue. Both re-runs are safe:
+    // billable_mentions dedupes on match id, the deliverer dedupes on
+    // deliveries(destination_id, mention_match_id).
     if (row.state === 'classified' && row.relevance !== null && row.relevance >= RELEVANCE_THRESHOLD) {
+      await recordBillableMention({ db: env.DB, orgId, mentionMatchId });
       await env.DELIVER.send({ mentionMatchId, orgId });
     }
     return;
@@ -138,8 +141,10 @@ async function handleJob(env: Env, job: { mentionMatchId: string; orgId: string 
     .run();
 
   // changes === 0 means a concurrent consumer won the state transition; it
-  // owns the deliver enqueue too, so we must not double-send here.
+  // owns the billing record and deliver enqueue too, so we must not double
+  // up here.
   if (nextState === 'classified' && update.meta.changes > 0) {
+    await recordBillableMention({ db: env.DB, orgId, mentionMatchId });
     await env.DELIVER.send({ mentionMatchId, orgId });
   }
 }

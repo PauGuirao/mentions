@@ -1,8 +1,7 @@
 /**
  * MCP tool registry. Every input schema is derived from @mentions/core
  * schemas (omit/extract/reuse), and every handler is a thin skin over the
- * core ops layer; the one exception (get_mention_stats) runs its aggregate
- * here and is flagged as a candidate to move into ops.
+ * core ops layer.
  */
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -11,10 +10,12 @@ import {
   createKeywordBodySchema,
   matchStateSchema,
   searchMentionsQuerySchema,
+  sourceSchema,
 } from '@mentions/core/schemas';
 import { getMention, searchMentions, setMentionState } from '@mentions/core/ops/mentions';
 import { createKeyword, listKeywords } from '@mentions/core/ops/keywords';
 import { getCompanyContext, setCompanyContext } from '@mentions/core/ops/company';
+import { getMentionStats } from '@mentions/core/ops/stats';
 
 export interface ToolCtx {
   db: D1Database;
@@ -75,6 +76,8 @@ const setMentionStateInputSchema = mentionIdSchema.extend({
 
 const mentionStatsInputSchema = z.object({
   sinceDays: z.number().int().min(1).max(365).default(7).describe('Look-back window in days'),
+  source: sourceSchema.optional().describe('Only count mentions from this source platform'),
+  keywordId: z.string().optional().describe('Only count mentions matching this keyword id'),
 });
 
 export const TOOLS: RegisteredTool[] = [
@@ -158,33 +161,17 @@ export const TOOLS: RegisteredTool[] = [
   tool({
     name: 'get_mention_stats',
     description:
-      'Mention counts for the last N days (default 7), grouped by source platform and by sentiment. Unclassified mentions appear under sentiment "unclassified".',
+      'Mention counts for the last N days (default 7), grouped by source platform and by sentiment, optionally filtered to one source or keyword. Unclassified mentions appear under sentiment "unclassified".',
     schema: mentionStatsInputSchema,
     run: async (ctx, input) => {
-      // Direct D1 aggregate; candidate to move into core ops (ops/mentions)
-      // once a second consumer (REST API dashboard) needs the same numbers.
-      const since = Date.now() - input.sinceDays * 86_400_000;
-      const { results } = await ctx.db
-        .prepare(
-          `SELECT m.source AS source, mm.sentiment AS sentiment, COUNT(*) AS n
-           FROM mention_matches mm
-           JOIN mentions m ON m.id = mm.mention_id
-           WHERE mm.org_id = ?1 AND mm.created_at >= ?2
-           GROUP BY m.source, mm.sentiment`,
-        )
-        .bind(ctx.orgId, since)
-        .all<{ source: string; sentiment: string | null; n: number }>();
-
-      let total = 0;
-      const bySource: Record<string, number> = {};
-      const bySentiment: Record<string, number> = {};
-      for (const row of results) {
-        total += row.n;
-        bySource[row.source] = (bySource[row.source] ?? 0) + row.n;
-        const sentimentKey = row.sentiment ?? 'unclassified';
-        bySentiment[sentimentKey] = (bySentiment[sentimentKey] ?? 0) + row.n;
-      }
-      return { sinceDays: input.sinceDays, total, bySource, bySentiment };
+      // Shares the dashboard aggregate (windows on published_at).
+      return getMentionStats({
+        db: ctx.db,
+        orgId: ctx.orgId,
+        sinceDays: input.sinceDays,
+        source: input.source,
+        keywordId: input.keywordId,
+      });
     },
   }),
 ];

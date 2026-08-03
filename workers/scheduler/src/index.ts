@@ -10,13 +10,51 @@
  * The scheduler only decides WHAT is due; cursors and fetching live in the
  * ingest worker. Losing a tick therefore delays data, never loses it.
  */
+import { dayKey, runDailyBilling } from '@mentions/core/ops/billing';
 import type { FetchJob } from '@mentions/core/pipeline';
+import { PolarClient, resolvePolarServer } from '@mentions/core/polar';
 import type { Source } from '@mentions/core/schemas';
 
 interface Env {
   DB: D1Database;
   KV: KVNamespace;
   FETCH_JOBS: Queue<FetchJob>;
+  /** Unset -> billing flush defers (same enable-by-secret pattern as source
+   *  credentials): `wrangler secret put POLAR_ACCESS_TOKEN`. */
+  POLAR_ACCESS_TOKEN?: string;
+  /** 'sandbox' (default) or 'production'. */
+  POLAR_SERVER?: string;
+}
+
+const BILLING_DAY_KEY = 'lastrun:billing-day';
+
+/** Once per UTC day (Zernio pattern: daily cron, invoice sums at month
+ *  end). The KV mark is written only after a fully successful run, so a
+ *  failed day retries every minute until it lands — dedup makes that free. */
+async function flushBilling(env: Env, now: number): Promise<void> {
+  if (!env.POLAR_ACCESS_TOKEN) return;
+  const today = dayKey(now);
+  if ((await env.KV.get(BILLING_DAY_KEY)) === today) return;
+  const server = resolvePolarServer(env.POLAR_SERVER);
+  if (server === null) {
+    console.error(`[scheduler] invalid POLAR_SERVER "${env.POLAR_SERVER}"; billing flush skipped`);
+    return;
+  }
+  const polar = new PolarClient({ accessToken: env.POLAR_ACCESS_TOKEN, server });
+  try {
+    const { keywordDayEvents, mentionUnitEvents, closedCycles } = await runDailyBilling({
+      db: env.DB,
+      polar,
+      nowMs: now,
+    });
+    await env.KV.put(BILLING_DAY_KEY, today);
+    console.log(
+      `[scheduler] daily billing: ${keywordDayEvents} keyword-day + ${mentionUnitEvents} mention-unit event(s), ${closedCycles} cycle(s) closed`,
+    );
+  } catch (error) {
+    // The tick is re-runnable by design (external_id dedup); next tick retries.
+    console.error('[scheduler] billing flush failed', { error: String(error) });
+  }
 }
 
 /** Global sources: hackernews every tick, devto every 5 minutes. */
@@ -108,5 +146,7 @@ export default {
     if (jobs.length > 0) {
       console.log(`[scheduler] enqueued ${jobs.length} fetch job(s) (terms=${termRows.length})`);
     }
+
+    await flushBilling(env, now);
   },
 } satisfies ExportedHandler<Env>;
