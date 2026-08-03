@@ -5,14 +5,18 @@
  * orgs.company_context directly in SQL, so the composition is stored, not
  * computed on read). The raw-context accessors stay for the API/MCP surface.
  */
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/client';
+import { orgs } from '../db/schema';
 import type { CompanyProfile } from '../schemas';
 
 export async function getCompanyContext(args: { db: D1Database; orgId: string }): Promise<string> {
-  const row = await args.db
-    .prepare('SELECT company_context FROM orgs WHERE id = ?')
-    .bind(args.orgId)
-    .first<{ company_context: string }>();
-  return row?.company_context ?? '';
+  const row = await getDb(args.db)
+    .select({ companyContext: orgs.companyContext })
+    .from(orgs)
+    .where(eq(orgs.id, args.orgId))
+    .get();
+  return row?.companyContext ?? '';
 }
 
 export async function setCompanyContext(args: {
@@ -20,10 +24,7 @@ export async function setCompanyContext(args: {
   orgId: string;
   context: string;
 }): Promise<void> {
-  await args.db
-    .prepare('UPDATE orgs SET company_context = ? WHERE id = ?')
-    .bind(args.context, args.orgId)
-    .run();
+  await getDb(args.db).update(orgs).set({ companyContext: args.context }).where(eq(orgs.id, args.orgId));
 }
 
 /** The flat classifier context derived from a structured profile. */
@@ -45,15 +46,6 @@ export function composeCompanyContext(profile: CompanyProfile): string {
   return parts.join('\n\n');
 }
 
-interface ProfileRow {
-  name: string;
-  brand_name: string | null;
-  description: string;
-  use_cases: string;
-  x_account: string | null;
-  linkedin_account: string | null;
-}
-
 const parseUseCases = (raw: string): string[] => {
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -67,19 +59,25 @@ export async function getCompanyProfile(args: {
   db: D1Database;
   orgId: string;
 }): Promise<CompanyProfile | null> {
-  const row = await args.db
-    .prepare(
-      'SELECT name, brand_name, description, use_cases, x_account, linkedin_account FROM orgs WHERE id = ?',
-    )
-    .bind(args.orgId)
-    .first<ProfileRow>();
+  const row = await getDb(args.db)
+    .select({
+      name: orgs.name,
+      brandName: orgs.brandName,
+      description: orgs.description,
+      useCases: orgs.useCases,
+      xAccount: orgs.xAccount,
+      linkedinAccount: orgs.linkedinAccount,
+    })
+    .from(orgs)
+    .where(eq(orgs.id, args.orgId))
+    .get();
   if (!row) return null;
   return {
-    name: row.brand_name ?? row.name,
+    name: row.brandName ?? row.name,
     description: row.description,
-    useCases: parseUseCases(row.use_cases),
-    xAccount: row.x_account,
-    linkedinAccount: row.linkedin_account,
+    useCases: parseUseCases(row.useCases),
+    xAccount: row.xAccount,
+    linkedinAccount: row.linkedinAccount,
   };
 }
 
@@ -89,18 +87,15 @@ export async function setCompanyProfile(args: {
   profile: CompanyProfile;
 }): Promise<void> {
   const { db, orgId, profile } = args;
-  await db
-    .prepare(
-      'UPDATE orgs SET brand_name = ?, description = ?, use_cases = ?, x_account = ?, linkedin_account = ?, company_context = ? WHERE id = ?',
-    )
-    .bind(
-      profile.name,
-      profile.description,
-      JSON.stringify(profile.useCases),
-      profile.xAccount,
-      profile.linkedinAccount,
-      composeCompanyContext(profile),
-      orgId,
-    )
-    .run();
+  await getDb(db)
+    .update(orgs)
+    .set({
+      brandName: profile.name,
+      description: profile.description,
+      useCases: JSON.stringify(profile.useCases),
+      xAccount: profile.xAccount,
+      linkedinAccount: profile.linkedinAccount,
+      companyContext: composeCompanyContext(profile),
+    })
+    .where(eq(orgs.id, orgId));
 }

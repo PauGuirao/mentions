@@ -1,69 +1,71 @@
 import { describe, expect, it } from 'vitest';
-import { bootstrapOrgForUser, getOrgForUser, getUserWithOrgs } from '../org-members';
-import { createDbStub } from './stubs';
+import { bootstrapOrgForUser, getOrgForUser, getUserWithOrgs, listOrgsForUser } from '../org-members';
+import { createTestD1, seedUser } from './d1-sqlite';
 
 describe('bootstrapOrgForUser', () => {
-  it('creates an org and owner membership for a fresh user', async () => {
-    const { db, queries } = createDbStub(() => ({ first: null }));
+  it('creates an org and owner membership named from the email localpart', async () => {
+    const db = createTestD1();
+    await seedUser(db, 'u1');
     const result = await bootstrapOrgForUser({ db, userId: 'u1', email: 'pau@zernio.com' });
 
     expect(result.created).toBe(true);
     expect(result.orgId).toMatch(/^org_/);
-    const sqls = queries.map((q) => q.sql);
-    expect(sqls.filter((s) => s.includes('INSERT INTO orgs'))).toHaveLength(1);
-    expect(sqls.filter((s) => s.includes('INSERT INTO org_members'))).toHaveLength(1);
-    const orgInsert = queries.find((q) => q.sql.includes('INSERT INTO orgs'))!;
-    expect(orgInsert.params).toContain("pau's workspace");
+    const orgs = await listOrgsForUser({ db, userId: 'u1' });
+    expect(orgs).toHaveLength(1);
+    expect(orgs[0]).toMatchObject({ id: result.orgId, name: "pau's workspace", role: 'owner' });
   });
 
-  it('is idempotent: bails when a membership already exists', async () => {
-    const { db, queries } = createDbStub((query) =>
-      query.sql.includes('SELECT org_id') ? { first: { org_id: 'org_existing' } } : {},
-    );
-    const result = await bootstrapOrgForUser({ db, userId: 'u1', email: 'a@b.co' });
-    expect(result).toEqual({ orgId: 'org_existing', created: false });
-    expect(queries.some((q) => q.sql.includes('INSERT'))).toBe(false);
+  it('is idempotent: a second call returns the existing org', async () => {
+    const db = createTestD1();
+    await seedUser(db, 'u1');
+    const first = await bootstrapOrgForUser({ db, userId: 'u1', email: 'a@b.co' });
+    const second = await bootstrapOrgForUser({ db, userId: 'u1', email: 'a@b.co' });
+    expect(second).toEqual({ orgId: first.orgId, created: false });
+    await expect(listOrgsForUser({ db, userId: 'u1' })).resolves.toHaveLength(1);
   });
 });
 
 describe('getOrgForUser', () => {
   it('returns the oldest membership org, or null', async () => {
-    const { db } = createDbStub(() => ({ first: { org_id: 'org_1' } }));
-    await expect(getOrgForUser({ db, userId: 'u1' })).resolves.toBe('org_1');
-
-    const { db: empty } = createDbStub(() => ({ first: null }));
-    await expect(getOrgForUser({ db: empty, userId: 'u1' })).resolves.toBeNull();
+    const db = createTestD1();
+    await seedUser(db, 'u1');
+    await db
+      .prepare(
+        `INSERT INTO orgs (id, name, created_at) VALUES ('org_new', 'new', 0), ('org_old', 'old', 0)`,
+      )
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO org_members (org_id, user_id, role, created_at) VALUES
+         ('org_new', 'u1', 'member', 200), ('org_old', 'u1', 'owner', 100)`,
+      )
+      .run();
+    await expect(getOrgForUser({ db, userId: 'u1' })).resolves.toBe('org_old');
+    await expect(getOrgForUser({ db, userId: 'nobody' })).resolves.toBeNull();
   });
 });
 
 describe('getUserWithOrgs', () => {
   it('normalizes ISO-string createdAt from the Better Auth table to epoch ms', async () => {
-    const { db } = createDbStub((query) => {
-      if (query.sql.includes('FROM "user"')) {
-        return {
-          first: { id: 'u1', email: 'a@b.co', name: 'A', createdAt: '2026-07-18T10:00:00.000Z' },
-        };
-      }
-      return {
-        results: [
-          {
-            id: 'org_1',
-            name: 'Zernio',
-            role: 'owner',
-            website: 'https://zernio.com',
-            brand_name: 'Zernio',
-            logo_url: null,
-            onboarded_at: 1_700_000_000_000,
-          },
-        ],
-      };
-    });
+    const db = createTestD1();
+    await seedUser(db, 'u1');
+    const { orgId } = await bootstrapOrgForUser({ db, userId: 'u1', email: 'u1@example.com' });
+    await db
+      .prepare("UPDATE orgs SET website = 'https://zernio.com', brand_name = 'Zernio', onboarded_at = 5 WHERE id = ?1")
+      .bind(orgId)
+      .run();
+
     const me = await getUserWithOrgs({ db, userId: 'u1' });
-    expect(me?.user.createdAt).toBe(Date.parse('2026-07-18T10:00:00.000Z'));
+    expect(me?.user).toEqual({
+      id: 'u1',
+      email: 'u1@example.com',
+      name: 'user u1',
+      createdAt: Date.parse('2026-07-18T10:00:00.000Z'),
+    });
     expect(me?.orgs).toEqual([
       {
-        id: 'org_1',
-        name: 'Zernio',
+        id: orgId,
+        name: "u1's workspace",
         role: 'owner',
         website: 'https://zernio.com',
         brandName: 'Zernio',
@@ -74,7 +76,7 @@ describe('getUserWithOrgs', () => {
   });
 
   it('returns null for unknown users', async () => {
-    const { db } = createDbStub(() => ({ first: null }));
+    const db = createTestD1();
     await expect(getUserWithOrgs({ db, userId: 'nope' })).resolves.toBeNull();
   });
 });

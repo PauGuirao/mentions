@@ -10,7 +10,8 @@ import {
   parseBrandAnalysisResponse,
   validateWebsiteUrl,
 } from '../brand';
-import { createDbStub } from './stubs';
+import { DuplicateKeywordError, createKeyword } from '../keywords';
+import { createTestD1, seedOrg } from './d1-sqlite';
 
 const VALID_REPLY = JSON.stringify({
   brandName: 'Resend',
@@ -171,12 +172,10 @@ describe('validateWebsiteUrl', () => {
 
 describe('completeOnboarding', () => {
   it('updates the org and creates keywords, skipping duplicates', async () => {
-    const { db, queries } = createDbStub((query) => {
-      if (query.sql.startsWith('INSERT INTO keywords') && query.params[2] === 'sendgrid') {
-        return { error: new Error('UNIQUE constraint failed: keywords.org_id, keywords.normalized_term') };
-      }
-      return {};
-    });
+    const db = createTestD1();
+    await seedOrg(db, 'org_1');
+    // Pre-existing keyword: onboarding proposing the same term must skip it.
+    await createKeyword({ db, orgId: 'org_1', term: 'sendgrid', kind: 'competitor' });
 
     const result = await completeOnboarding({
       db,
@@ -186,31 +185,33 @@ describe('completeOnboarding', () => {
       logoUrl: 'https://resend.com/favicon.svg',
       context: 'Email API for developers.',
       keywords: [
+        { term: 'SendGrid', kind: 'competitor' },
         { term: 'resend', kind: 'brand' },
-        { term: 'email api', kind: 'topic' },
-        { term: 'sendgrid', kind: 'competitor' },
       ],
     });
 
-    expect(result.keywordsCreated).toBe(2);
-    const update = queries[0];
-    expect(update?.sql).toContain('UPDATE orgs SET website');
-    expect(update?.params.slice(0, 5)).toEqual([
-      'https://resend.com',
-      'Resend',
-      'https://resend.com/favicon.svg',
-      'Email API for developers.',
-      'Email API for developers.',
-    ]);
-    expect(update?.params[6]).toBe('org_1');
-    expect(queries.filter((q) => q.sql.startsWith('INSERT INTO keywords'))).toHaveLength(3);
+    expect(result.keywordsCreated).toBe(1);
+    const org = await db
+      .prepare('SELECT website, brand_name, description, company_context FROM orgs WHERE id = ?1')
+      .bind('org_1')
+      .first();
+    expect(org).toEqual({
+      website: 'https://resend.com',
+      brand_name: 'Resend',
+      description: 'Email API for developers.',
+      company_context: 'Email API for developers.',
+    });
+    const terms = await db.prepare('SELECT term FROM keywords ORDER BY term').all<{ term: string }>();
+    expect(terms.results.map((r) => r.term)).toEqual(['resend', 'sendgrid']);
   });
 
   it('stops at the plan keyword limit instead of failing the onboarding', async () => {
-    // Free org at capacity: the guarded insert matches no row (changes 0).
-    const { db, queries } = createDbStub((query) =>
-      query.sql.startsWith('INSERT INTO keywords') ? { changes: 0 } : {},
-    );
+    const db = createTestD1();
+    await seedOrg(db, 'org_1');
+    // Free org at capacity (2 active keywords).
+    await createKeyword({ db, orgId: 'org_1', term: 'one', kind: 'brand' });
+    await createKeyword({ db, orgId: 'org_1', term: 'two', kind: 'brand' });
+
     const result = await completeOnboarding({
       db,
       orgId: 'org_1',
@@ -219,29 +220,29 @@ describe('completeOnboarding', () => {
       logoUrl: null,
       context: '',
       keywords: [
-        { term: 'one', kind: 'brand' },
-        { term: 'two', kind: 'topic' },
+        { term: 'three', kind: 'brand' },
+        { term: 'four', kind: 'topic' },
       ],
     });
     expect(result.keywordsCreated).toBe(0);
-    // The loop breaks on the first limit hit; keyword two is never attempted.
-    expect(queries.filter((q) => q.sql.startsWith('INSERT INTO keywords'))).toHaveLength(1);
+    const count = await db.prepare('SELECT COUNT(*) AS n FROM keywords').first<{ n: number }>();
+    expect(count?.n).toBe(2);
   });
 
   it('propagates non-duplicate insert failures', async () => {
-    const { db } = createDbStub((query) =>
-      query.sql.startsWith('INSERT INTO keywords') ? { error: new Error('disk full') } : {},
-    );
+    const db = createTestD1();
+    // No org row: the keyword insert hits a real FK failure, which must NOT
+    // be swallowed like a duplicate skip.
     await expect(
       completeOnboarding({
         db,
-        orgId: 'org_1',
+        orgId: 'org_missing',
         website: 'https://x.dev',
         brandName: 'X',
         logoUrl: null,
         context: '',
         keywords: [{ term: 'x term', kind: 'brand' }],
       }),
-    ).rejects.toThrow('disk full');
+    ).rejects.toSatisfy((err) => !(err instanceof DuplicateKeywordError));
   });
 });

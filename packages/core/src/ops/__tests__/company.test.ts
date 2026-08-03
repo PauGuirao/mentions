@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CompanyProfile } from '../../schemas';
-import { composeCompanyContext, getCompanyProfile, setCompanyProfile } from '../company';
-import { createDbStub } from './stubs';
+import {
+  composeCompanyContext,
+  getCompanyContext,
+  getCompanyProfile,
+  setCompanyContext,
+  setCompanyProfile,
+} from '../company';
+import { createTestD1, seedOrg } from './d1-sqlite';
 
 const PROFILE: CompanyProfile = {
   name: 'Zernio',
@@ -41,59 +47,48 @@ describe('composeCompanyContext', () => {
   });
 });
 
-describe('getCompanyProfile', () => {
-  it('maps the row, preferring brand_name and parsing use_cases JSON', async () => {
-    const { db } = createDbStub(() => ({
-      first: {
-        name: "pau's workspace",
-        brand_name: 'Zernio',
-        description: 'desc',
-        use_cases: '["a","b"]',
-        x_account: null,
-        linkedin_account: 'Zernio',
-      },
-    }));
-    await expect(getCompanyProfile({ db, orgId: 'org_1' })).resolves.toEqual({
-      name: 'Zernio',
-      description: 'desc',
-      useCases: ['a', 'b'],
-      xAccount: null,
-      linkedinAccount: 'Zernio',
-    });
-  });
-
-  it('falls back to org name and tolerates malformed use_cases', async () => {
-    const { db } = createDbStub(() => ({
-      first: {
-        name: "pau's workspace",
-        brand_name: null,
-        description: '',
-        use_cases: 'not json',
-        x_account: null,
-        linkedin_account: null,
-      },
-    }));
-    const profile = await getCompanyProfile({ db, orgId: 'org_1' });
-    expect(profile?.name).toBe("pau's workspace");
-    expect(profile?.useCases).toEqual([]);
+describe('company context', () => {
+  it('round-trips through set/get and defaults to empty', async () => {
+    const db = createTestD1();
+    await seedOrg(db, 'org_1');
+    await expect(getCompanyContext({ db, orgId: 'org_1' })).resolves.toBe('');
+    await setCompanyContext({ db, orgId: 'org_1', context: 'We build X for Y.' });
+    await expect(getCompanyContext({ db, orgId: 'org_1' })).resolves.toBe('We build X for Y.');
+    // Missing org: empty string, not an error.
+    await expect(getCompanyContext({ db, orgId: 'org_missing' })).resolves.toBe('');
   });
 });
 
-describe('setCompanyProfile', () => {
-  it('writes the fields and the composed classifier context in one update', async () => {
-    const { db, queries } = createDbStub();
+describe('company profile', () => {
+  it('round-trips and stores the composed classifier context', async () => {
+    const db = createTestD1();
+    await seedOrg(db, 'org_1');
     await setCompanyProfile({ db, orgId: 'org_1', profile: PROFILE });
-    expect(queries).toHaveLength(1);
-    const query = queries[0];
-    expect(query?.sql).toContain('UPDATE orgs SET brand_name');
-    expect(query?.params).toEqual([
-      'Zernio',
-      'Unified social media API for developers.',
-      '["Cross-platform publishing","Unified inbox"]',
-      'zernio',
-      'Zernio',
+
+    await expect(getCompanyProfile({ db, orgId: 'org_1' })).resolves.toEqual(PROFILE);
+    await expect(getCompanyContext({ db, orgId: 'org_1' })).resolves.toBe(
       composeCompanyContext(PROFILE),
-      'org_1',
-    ]);
+    );
+  });
+
+  it('falls back to the org name before a profile is saved', async () => {
+    const db = createTestD1();
+    await seedOrg(db, 'org_1');
+    const profile = await getCompanyProfile({ db, orgId: 'org_1' });
+    expect(profile?.name).toBe('org org_1');
+    expect(profile?.useCases).toEqual([]);
+  });
+
+  it('tolerates malformed use_cases JSON', async () => {
+    const db = createTestD1();
+    await seedOrg(db, 'org_1');
+    await db.prepare("UPDATE orgs SET use_cases = 'not json' WHERE id = 'org_1'").run();
+    const profile = await getCompanyProfile({ db, orgId: 'org_1' });
+    expect(profile?.useCases).toEqual([]);
+  });
+
+  it('returns null for a missing org', async () => {
+    const db = createTestD1();
+    await expect(getCompanyProfile({ db, orgId: 'org_missing' })).resolves.toBeNull();
   });
 });

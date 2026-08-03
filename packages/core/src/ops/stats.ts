@@ -4,6 +4,9 @@
  * we ingested it); days are UTC buckets, zero-filled so charts get a full
  * series.
  */
+import { and, desc, eq, gte, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/client';
+import { keywords, mentionMatches, mentions } from '../db/schema';
 import type { MentionStats, Source } from '../schemas';
 import { SOURCES } from '../schemas';
 
@@ -27,52 +30,43 @@ export async function getMentionStats(args: {
   keywordId?: string | undefined;
 }): Promise<MentionStats> {
   const { db, orgId, sinceDays, source, keywordId } = args;
+  const orm = getDb(db);
   const now = Date.now();
   const since = now - sinceDays * DAY_MS;
 
-  const conditions = ['mm.org_id = ?1', 'm.published_at >= ?2'];
-  const params: Array<string | number> = [orgId, since];
-  if (source !== undefined) {
-    params.push(source);
-    conditions.push(`m.source = ?${params.length}`);
-  }
-  if (keywordId !== undefined) {
-    params.push(keywordId);
-    conditions.push(`mm.keyword_id = ?${params.length}`);
-  }
-  const where = conditions.join(' AND ');
+  const conditions: SQL[] = [eq(mentionMatches.orgId, orgId), gte(mentions.publishedAt, since)];
+  if (source !== undefined) conditions.push(eq(mentions.source, source));
+  if (keywordId !== undefined) conditions.push(eq(mentionMatches.keywordId, keywordId));
+  const where = and(...conditions);
 
+  const count = sql<number>`COUNT(*)`;
   const [byDay, bySource, byKeyword] = await Promise.all([
-    db
-      .prepare(
-        `SELECT strftime('%Y-%m-%d', m.published_at / 1000, 'unixepoch') AS day,
-                mm.sentiment AS sentiment, COUNT(*) AS n
-         FROM mention_matches mm JOIN mentions m ON m.id = mm.mention_id
-         WHERE ${where}
-         GROUP BY day, mm.sentiment`,
-      )
-      .bind(...params)
-      .all<{ day: string; sentiment: string | null; n: number }>(),
-    db
-      .prepare(
-        `SELECT m.source AS source, COUNT(*) AS n
-         FROM mention_matches mm JOIN mentions m ON m.id = mm.mention_id
-         WHERE ${where}
-         GROUP BY m.source ORDER BY n DESC`,
-      )
-      .bind(...params)
-      .all<{ source: string; n: number }>(),
-    db
-      .prepare(
-        `SELECT k.id AS keyword_id, k.term AS term, COUNT(*) AS n
-         FROM mention_matches mm
-         JOIN mentions m ON m.id = mm.mention_id
-         JOIN keywords k ON k.id = mm.keyword_id
-         WHERE ${where}
-         GROUP BY k.id ORDER BY n DESC LIMIT 8`,
-      )
-      .bind(...params)
-      .all<{ keyword_id: string; term: string; n: number }>(),
+    orm
+      .select({
+        day: sql<string>`strftime('%Y-%m-%d', ${mentions.publishedAt} / 1000, 'unixepoch')`.as('day'),
+        sentiment: mentionMatches.sentiment,
+        n: count.as('n'),
+      })
+      .from(mentionMatches)
+      .innerJoin(mentions, eq(mentions.id, mentionMatches.mentionId))
+      .where(where)
+      .groupBy(sql`day`, mentionMatches.sentiment),
+    orm
+      .select({ source: mentions.source, n: count.as('n') })
+      .from(mentionMatches)
+      .innerJoin(mentions, eq(mentions.id, mentionMatches.mentionId))
+      .where(where)
+      .groupBy(mentions.source)
+      .orderBy(desc(sql`n`)),
+    orm
+      .select({ keywordId: keywords.id, term: keywords.term, n: count.as('n') })
+      .from(mentionMatches)
+      .innerJoin(mentions, eq(mentions.id, mentionMatches.mentionId))
+      .innerJoin(keywords, eq(keywords.id, mentionMatches.keywordId))
+      .where(where)
+      .groupBy(keywords.id)
+      .orderBy(desc(sql`n`))
+      .limit(8),
   ]);
 
   // Zero-filled UTC day series, oldest first, ending today.
@@ -83,7 +77,7 @@ export async function getMentionStats(args: {
   }
   const bySentiment = { positive: 0, neutral: 0, negative: 0, unclassified: 0 };
   let total = 0;
-  for (const row of byDay.results) {
+  for (const row of byDay) {
     const bucket = toBucket(row.sentiment);
     bySentiment[bucket] += row.n;
     total += row.n;
@@ -95,13 +89,13 @@ export async function getMentionStats(args: {
     sinceDays,
     total,
     bySentiment,
-    bySource: bySource.results
+    bySource: bySource
       .filter((row): row is { source: Source; n: number } =>
         (SOURCES as readonly string[]).includes(row.source),
       )
       .map((row) => ({ source: row.source, count: row.n })),
-    byKeyword: byKeyword.results.map((row) => ({
-      keywordId: row.keyword_id,
+    byKeyword: byKeyword.map((row) => ({
+      keywordId: row.keywordId,
       term: row.term,
       count: row.n,
     })),

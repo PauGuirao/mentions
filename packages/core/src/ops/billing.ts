@@ -19,6 +19,10 @@
 import type { BillingStatus, UsageSummary } from '../schemas';
 import type { PolarClient, PolarEvent } from '../polar';
 
+// DELIBERATELY NOT PORTED TO DRIZZLE: every statement here is either a
+// MAX-guarded/capacity-gated write or an upsert whose exact SQL shape is the
+// correctness argument (billing must never over-bill). Raw prepared
+// statements keep that reviewable as SQL. See CLAUDE.md, Stack.
 export const POOL_PER_KEYWORD = 500;
 export const MENTION_UNIT_SIZE = 1000;
 export const FREE_KEYWORD_LIMIT = 2;

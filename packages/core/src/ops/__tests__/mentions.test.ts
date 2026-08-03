@@ -8,7 +8,7 @@ import {
   searchMentions,
   setMentionState,
 } from '../mentions';
-import { createDbStub, type RecordedQuery } from './stubs';
+import { createTestD1, seedOrg } from './d1-sqlite';
 
 describe('mentions cursor', () => {
   it('round-trips', () => {
@@ -32,30 +32,61 @@ describe('mentions cursor', () => {
   });
 });
 
-const makeRow = (n: number) => ({
-  match_id: `mm_${n}`,
-  source: 'github',
-  url: `https://github.com/x/${n}`,
-  author: 'octocat',
-  author_url: null,
-  text: `mention ${n}`,
-  published_at: 1000 + n,
-  keyword_id: 'kw_1',
-  keyword_term: 'acme',
-  state: 'classified',
-  relevance: 90,
-  sentiment: 'positive',
-  intents: '["question","buy_intent"]',
-  ai_note: null,
-  match_created_at: 2000 - n,
-});
+interface SeedMatch {
+  n: number;
+  source?: string;
+  state?: string;
+  relevance?: number | null;
+  sentiment?: string | null;
+  intents?: string | null;
+  text?: string;
+}
+
+/** One org, one keyword, N mention+match pairs. match mm_<n> has
+ *  created_at = 2000 - n, so mm_1 is the newest. */
+async function seedMentions(db: D1Database, matches: SeedMatch[]): Promise<void> {
+  await seedOrg(db, 'org_1');
+  await db
+    .prepare(
+      `INSERT INTO keywords (id, org_id, term, normalized_term, kind, muted, created_at)
+       VALUES ('kw_1', 'org_1', 'acme', 'acme', 'brand', 0, 1)`,
+    )
+    .run();
+  for (const m of matches) {
+    await db
+      .prepare(
+        `INSERT INTO mentions (id, source, external_id, url, author, text, published_at, created_at)
+         VALUES (?1, ?2, ?1, ?3, 'octocat', ?4, ?5, 1)`,
+      )
+      .bind(`m_${m.n}`, m.source ?? 'github', `https://github.com/x/${m.n}`, m.text ?? `mention ${m.n}`, 1000 + m.n)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO mention_matches (id, org_id, mention_id, keyword_id, state, relevance, sentiment, intents, created_at)
+         VALUES (?1, ?2, ?3, 'kw_1', ?4, ?5, ?6, ?7, ?8)`,
+      )
+      .bind(
+        `mm_${m.n}`,
+        'org_1',
+        `m_${m.n}`,
+        m.state ?? 'classified',
+        m.relevance === undefined ? 90 : m.relevance,
+        m.sentiment === undefined ? 'positive' : m.sentiment,
+        m.intents === undefined ? '["question","buy_intent"]' : m.intents,
+        2000 - m.n,
+      )
+      .run();
+  }
+}
+
+const parse = (q: Record<string, unknown>) => searchMentionsQuerySchema.parse(q);
 
 describe('searchMentions', () => {
   it('maps joined rows into the Mention shape (intents JSON parsed)', async () => {
-    const { db } = createDbStub(() => ({ results: [makeRow(1)] }));
-    const query = searchMentionsQuerySchema.parse({});
+    const db = createTestD1();
+    await seedMentions(db, [{ n: 1 }]);
 
-    const { mentions, nextCursor } = await searchMentions({ db, orgId: 'org_1', query });
+    const { mentions, nextCursor } = await searchMentions({ db, orgId: 'org_1', query: parse({}) });
     expect(nextCursor).toBeNull();
     expect(mentions).toEqual([
       {
@@ -78,106 +109,92 @@ describe('searchMentions', () => {
     ]);
   });
 
-  it('treats null/malformed intents as empty', async () => {
-    const { db } = createDbStub(() => ({
-      results: [
-        { ...makeRow(1), intents: null },
-        { ...makeRow(2), intents: 'not-json' },
-      ],
-    }));
-    const { mentions } = await searchMentions({ db, orgId: 'org_1', query: searchMentionsQuerySchema.parse({}) });
-    expect(mentions.map((m) => m.intents)).toEqual([[], []]);
+  it('applies filters: source, state, minRelevance, sentiment, intent', async () => {
+    const db = createTestD1();
+    await seedMentions(db, [
+      { n: 1, source: 'github', state: 'classified', relevance: 90, sentiment: 'positive' },
+      { n: 2, source: 'reddit', state: 'classified', relevance: 40, sentiment: 'negative', intents: '["complaint"]' },
+      { n: 3, source: 'github', state: 'ignored', relevance: 80, sentiment: 'neutral', intents: null },
+    ]);
+    const search = async (q: Record<string, unknown>) =>
+      (await searchMentions({ db, orgId: 'org_1', query: parse(q) })).mentions.map((m) => m.id);
+
+    await expect(search({ source: 'reddit' })).resolves.toEqual(['mm_2']);
+    await expect(search({ state: 'ignored' })).resolves.toEqual(['mm_3']);
+    await expect(search({ minRelevance: 80 })).resolves.toEqual(['mm_1', 'mm_3']);
+    await expect(search({ sentiment: 'negative' })).resolves.toEqual(['mm_2']);
+    await expect(search({ intent: 'complaint' })).resolves.toEqual(['mm_2']);
+    await expect(search({ intent: 'question' })).resolves.toEqual(['mm_1']);
   });
 
-  it('fetches limit+1 and emits a nextCursor pointing at the last returned row', async () => {
-    const { db, queries } = createDbStub(() => ({ results: [makeRow(1), makeRow(2), makeRow(3)] }));
-    const query = searchMentionsQuerySchema.parse({ limit: '2' });
+  it('matches free text literally, escaping LIKE wildcards', async () => {
+    const db = createTestD1();
+    await seedMentions(db, [
+      { n: 1, text: 'we got 100% uptime with acme' },
+      { n: 2, text: 'acme is 100x better' },
+    ]);
+    const search = async (q: Record<string, unknown>) =>
+      (await searchMentions({ db, orgId: 'org_1', query: parse(q) })).mentions.map((m) => m.id);
 
-    const { mentions, nextCursor } = await searchMentions({ db, orgId: 'org_1', query });
-    expect(mentions).toHaveLength(2);
-    expect(queries[0]!.params.at(-1)).toBe(3); // limit + 1
-    expect(nextCursor).not.toBeNull();
-    expect(decodeMentionsCursor(nextCursor!)).toEqual({ createdAt: 1998, id: 'mm_2' });
+    // A literal "%" must not act as a wildcard.
+    await expect(search({ q: '100%' })).resolves.toEqual(['mm_1']);
+    await expect(search({ q: 'acme' })).resolves.toEqual(['mm_1', 'mm_2']);
   });
 
-  it('applies the keyset clause when a cursor is passed', async () => {
-    const { db, queries } = createDbStub(() => ({ results: [] }));
-    const cursor = encodeMentionsCursor({ createdAt: 1998, id: 'mm_2' });
-    await searchMentions({ db, orgId: 'org_1', query: searchMentionsQuerySchema.parse({ cursor }) });
+  it('paginates with a keyset cursor, newest first', async () => {
+    const db = createTestD1();
+    await seedMentions(db, [{ n: 1 }, { n: 2 }, { n: 3 }]);
 
-    const q = queries[0]!;
-    expect(q.sql).toContain('(mm.created_at < ? OR (mm.created_at = ? AND mm.id < ?))');
-    expect(q.params).toContain(1998);
-    expect(q.params).toContain('mm_2');
+    const first = await searchMentions({ db, orgId: 'org_1', query: parse({ limit: 2 }) });
+    expect(first.mentions.map((m) => m.id)).toEqual(['mm_1', 'mm_2']);
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await searchMentions({
+      db,
+      orgId: 'org_1',
+      query: parse({ limit: 2, cursor: first.nextCursor }),
+    });
+    expect(second.mentions.map((m) => m.id)).toEqual(['mm_3']);
+    expect(second.nextCursor).toBeNull();
   });
 
-  it('throws InvalidCursorError on a garbage cursor', async () => {
-    const { db } = createDbStub();
+  it('throws InvalidCursorError for a malformed cursor', async () => {
+    const db = createTestD1();
+    await seedMentions(db, [{ n: 1 }]);
     await expect(
-      searchMentions({ db, orgId: 'org_1', query: searchMentionsQuerySchema.parse({ cursor: 'garbage!' }) }),
+      searchMentions({ db, orgId: 'org_1', query: parse({ cursor: '!!bad!!' }) }),
     ).rejects.toBeInstanceOf(InvalidCursorError);
   });
 
-  it('builds WHERE clauses for every filter and escapes LIKE wildcards in q', async () => {
-    const { db, queries } = createDbStub(() => ({ results: [] }));
-    const query = searchMentionsQuerySchema.parse({
-      keywordId: 'kw_1',
-      source: 'github',
-      state: 'classified',
-      minRelevance: '80',
-      sentiment: 'positive',
-      intent: 'buy_intent',
-      q: '50%_off',
-      since: '100',
-      until: '200',
-    });
-    await searchMentions({ db, orgId: 'org_1', query });
-
-    const q: RecordedQuery = queries[0]!;
-    for (const clause of [
-      'mm.org_id = ?',
-      'mm.keyword_id = ?',
-      'm.source = ?',
-      'mm.state = ?',
-      'mm.relevance >= ?',
-      'mm.sentiment = ?',
-      'mm.intents LIKE ?',
-      'm.text LIKE ?',
-      'm.published_at >= ?',
-      'm.published_at <= ?',
-    ]) {
-      expect(q.sql).toContain(clause);
-    }
-    // Underscore is a LIKE wildcard, so it is escaped for a literal match.
-    expect(q.params).toContain('%"buy\\_intent"%');
-    expect(q.params).toContain('%50\\%\\_off%');
-    expect(q.params).toContain(80);
-    expect(q.params).toContain(100);
-    expect(q.params).toContain(200);
+  it('scopes to the org', async () => {
+    const db = createTestD1();
+    await seedMentions(db, [{ n: 1 }]);
+    const { mentions } = await searchMentions({ db, orgId: 'org_other', query: parse({}) });
+    expect(mentions).toEqual([]);
   });
 });
 
 describe('getMention', () => {
-  it('returns null when the match does not exist for the org', async () => {
-    const { db, queries } = createDbStub(() => ({ first: null }));
-    const mention = await getMention({ db, orgId: 'org_1', mentionMatchId: 'mm_missing' });
-    expect(mention).toBeNull();
-    expect(queries[0]!.params).toEqual(['mm_missing', 'org_1']);
+  it('returns one mention by match id, org-scoped', async () => {
+    const db = createTestD1();
+    await seedMentions(db, [{ n: 1 }]);
+    const mention = await getMention({ db, orgId: 'org_1', mentionMatchId: 'mm_1' });
+    expect(mention?.id).toBe('mm_1');
+    await expect(getMention({ db, orgId: 'org_other', mentionMatchId: 'mm_1' })).resolves.toBeNull();
   });
 });
 
 describe('setMentionState', () => {
-  it('scopes the update to the org and reports whether a row changed', async () => {
-    const { db, queries } = createDbStub(() => ({ changes: 1 }));
-    const updated = await setMentionState({ db, orgId: 'org_1', mentionMatchId: 'mm_1', state: 'done' });
-    expect(updated).toBe(true);
-    expect(queries[0]!.sql).toContain('WHERE id = ? AND org_id = ?');
-    expect(queries[0]!.params).toEqual(['done', 'mm_1', 'org_1']);
-  });
-
-  it('returns false when nothing matched', async () => {
-    const { db } = createDbStub(() => ({ changes: 0 }));
-    const updated = await setMentionState({ db, orgId: 'org_1', mentionMatchId: 'mm_x', state: 'ignored' });
-    expect(updated).toBe(false);
+  it('updates the state and reports existence, org-scoped', async () => {
+    const db = createTestD1();
+    await seedMentions(db, [{ n: 1 }]);
+    await expect(
+      setMentionState({ db, orgId: 'org_1', mentionMatchId: 'mm_1', state: 'done' }),
+    ).resolves.toBe(true);
+    const mention = await getMention({ db, orgId: 'org_1', mentionMatchId: 'mm_1' });
+    expect(mention?.state).toBe('done');
+    await expect(
+      setMentionState({ db, orgId: 'org_other', mentionMatchId: 'mm_1', state: 'ignored' }),
+    ).resolves.toBe(false);
   });
 });

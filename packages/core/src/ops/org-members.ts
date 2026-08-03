@@ -4,6 +4,9 @@
  * where a user becomes a tenant: every user gets a workspace org through
  * org_members, and org-scoped ops only ever see the orgId.
  */
+import { asc, eq } from 'drizzle-orm';
+import { getDb } from '../db/client';
+import { orgMembers, orgs } from '../db/schema';
 import { newId } from '../ids';
 import type { OrgSummary, User } from '../schemas';
 
@@ -16,65 +19,59 @@ export async function bootstrapOrgForUser(args: {
   orgName?: string;
 }): Promise<{ orgId: string; created: boolean }> {
   const { db, userId, email } = args;
+  const orm = getDb(db);
 
-  const existing = await db
-    .prepare('SELECT org_id FROM org_members WHERE user_id = ? ORDER BY created_at ASC LIMIT 1')
-    .bind(userId)
-    .first<{ org_id: string }>();
-  if (existing) return { orgId: existing.org_id, created: false };
+  const existing = await getOrgForUser({ db, userId });
+  if (existing) return { orgId: existing, created: false };
 
   const orgId = newId('org');
   const orgName = args.orgName?.trim() || `${email.split('@')[0]}'s workspace`;
   const now = Date.now();
-  await db.batch([
-    db.prepare('INSERT INTO orgs (id, name, created_at) VALUES (?, ?, ?)').bind(orgId, orgName, now),
-    db
-      .prepare('INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (?, ?, ?, ?)')
-      .bind(orgId, userId, 'owner', now),
+  await orm.batch([
+    orm.insert(orgs).values({ id: orgId, name: orgName, createdAt: now }),
+    orm.insert(orgMembers).values({ orgId, userId, role: 'owner', createdAt: now }),
   ]);
   return { orgId, created: true };
 }
 
 /** The org a session acts on: oldest membership wins (MVP: one org/user). */
 export async function getOrgForUser(args: { db: D1Database; userId: string }): Promise<string | null> {
-  const row = await args.db
-    .prepare('SELECT org_id FROM org_members WHERE user_id = ? ORDER BY created_at ASC LIMIT 1')
-    .bind(args.userId)
-    .first<{ org_id: string }>();
-  return row?.org_id ?? null;
-}
-
-interface OrgSummaryRow {
-  id: string;
-  name: string;
-  role: 'owner' | 'member';
-  website: string | null;
-  brand_name: string | null;
-  logo_url: string | null;
-  onboarded_at: number | null;
+  const row = await getDb(args.db)
+    .select({ orgId: orgMembers.orgId })
+    .from(orgMembers)
+    .where(eq(orgMembers.userId, args.userId))
+    .orderBy(asc(orgMembers.createdAt))
+    .limit(1)
+    .get();
+  return row?.orgId ?? null;
 }
 
 export async function listOrgsForUser(args: {
   db: D1Database;
   userId: string;
 }): Promise<OrgSummary[]> {
-  const { results } = await args.db
-    .prepare(
-      `SELECT o.id, o.name, om.role, o.website, o.brand_name, o.logo_url, o.onboarded_at
-       FROM org_members om
-       JOIN orgs o ON o.id = om.org_id
-       WHERE om.user_id = ? ORDER BY om.created_at ASC`,
-    )
-    .bind(args.userId)
-    .all<OrgSummaryRow>();
-  return results.map((row) => ({
+  const rows = await getDb(args.db)
+    .select({
+      id: orgs.id,
+      name: orgs.name,
+      role: orgMembers.role,
+      website: orgs.website,
+      brandName: orgs.brandName,
+      logoUrl: orgs.logoUrl,
+      onboardedAt: orgs.onboardedAt,
+    })
+    .from(orgMembers)
+    .innerJoin(orgs, eq(orgs.id, orgMembers.orgId))
+    .where(eq(orgMembers.userId, args.userId))
+    .orderBy(asc(orgMembers.createdAt));
+  return rows.map((row) => ({
     id: row.id,
     name: row.name,
     role: row.role,
     website: row.website,
-    brandName: row.brand_name,
-    logoUrl: row.logo_url,
-    onboarded: row.onboarded_at !== null,
+    brandName: row.brandName,
+    logoUrl: row.logoUrl,
+    onboarded: row.onboardedAt !== null,
   }));
 }
 
@@ -98,6 +95,8 @@ export async function getUserWithOrgs(args: {
   orgs: OrgSummary[];
 } | null> {
   const { db, userId } = args;
+  // Better Auth's "user" table is deliberately outside the drizzle schema
+  // (Better Auth owns its shape), so this one read stays raw.
   const row = await db
     .prepare('SELECT id, email, name, "createdAt" FROM "user" WHERE id = ?')
     .bind(userId)

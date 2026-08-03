@@ -72,6 +72,11 @@ middleware and the OpenAPI spec).
 ## Stack
 
 - Workers + Queues + D1 + KV + R2 + Durable Objects (Bluesky firehose) + Cron.
+- D1 through drizzle-orm: `packages/core/src/db/schema.ts` mirrors the SQL
+  migrations, which stay hand-written and wrangler-applied (drizzle-kit only
+  drafts new ones). Race-guarded writes (capacity gates, MAX-guards) stay raw
+  sql`` — never rebuild them in the query builder. Drizzle wraps driver errors
+  (DrizzleQueryError); constraint checks must walk err.cause.
 - API worker: Hono + @hono/zod-openapi; spec generated from code, served at
   /v1/openapi.json. Auth: Bearer API keys, hashed (SHA-256) in D1, KV-cached.
 - Classifier: Workers AI through AI Gateway. Model choice is config, not code.

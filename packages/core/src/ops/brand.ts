@@ -5,6 +5,9 @@
  * the fetch and the AI call, and completeOnboarding owns the D1 writes.
  * Mirrors the classifier's prompt+parse pattern (workers/classifier/classify.ts).
  */
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/client';
+import { orgs } from '../db/schema';
 import { brandAnalysisSchema, type BrandAnalysis } from '../schemas';
 import { DuplicateKeywordError, KeywordLimitError, createKeyword } from './keywords';
 
@@ -271,12 +274,17 @@ export async function completeOnboarding(args: {
 
   // The AI paragraph seeds both the structured profile description and the
   // flat classifier context (see ops/company.ts for how they relate).
-  await db
-    .prepare(
-      'UPDATE orgs SET website = ?, brand_name = ?, logo_url = ?, description = ?, company_context = ?, onboarded_at = ? WHERE id = ?',
-    )
-    .bind(website, brandName, logoUrl, context, context, Date.now(), orgId)
-    .run();
+  await getDb(db)
+    .update(orgs)
+    .set({
+      website,
+      brandName,
+      logoUrl,
+      description: context,
+      companyContext: context,
+      onboardedAt: Date.now(),
+    })
+    .where(eq(orgs.id, orgId));
 
   let keywordsCreated = 0;
   for (const keyword of keywords) {

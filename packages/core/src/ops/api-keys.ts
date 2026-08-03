@@ -3,6 +3,9 @@
  * SHA-256 hex of the full key is stored. Verification is KV-cached (TTL 300s)
  * with D1 as the source of truth.
  */
+import { and, desc, eq } from 'drizzle-orm';
+import { getDb } from '../db/client';
+import { apiKeys } from '../db/schema';
 import { newId } from '../ids';
 
 const API_KEY_PREFIX = 'mk_live_';
@@ -37,10 +40,14 @@ export async function mintApiKey(args: {
   const { db, orgId, name } = args;
   const { key, prefix } = generateApiKey();
   const id = newId('key');
-  await db
-    .prepare('INSERT INTO api_keys (id, org_id, key_hash, prefix, name, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, orgId, await sha256Hex(key), prefix, name ?? 'default', Date.now())
-    .run();
+  await getDb(db).insert(apiKeys).values({
+    id,
+    orgId,
+    keyHash: await sha256Hex(key),
+    prefix,
+    name: name ?? 'default',
+    createdAt: Date.now(),
+  });
   return { key, id, prefix };
 }
 
@@ -63,27 +70,29 @@ export async function verifyApiKey(args: {
     }
   }
 
-  const row = await db
-    .prepare('SELECT id, org_id FROM api_keys WHERE key_hash = ?')
-    .bind(hash)
-    .first<{ id: string; org_id: string }>();
+  const orm = getDb(db);
+  const row = await orm
+    .select({ id: apiKeys.id, orgId: apiKeys.orgId })
+    .from(apiKeys)
+    .where(eq(apiKeys.keyHash, hash))
+    .get();
   if (!row) return null;
 
   // Bookkeeping must never fail an otherwise valid auth.
   if (kv) {
     try {
-      await kv.put(kvCacheKey(hash), row.org_id, { expirationTtl: KV_CACHE_TTL_SECONDS });
+      await kv.put(kvCacheKey(hash), row.orgId, { expirationTtl: KV_CACHE_TTL_SECONDS });
     } catch {
       // best-effort
     }
   }
   try {
-    await db.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').bind(Date.now(), row.id).run();
+    await orm.update(apiKeys).set({ lastUsedAt: Date.now() }).where(eq(apiKeys.id, row.id));
   } catch {
     // best-effort
   }
 
-  return { orgId: row.org_id };
+  return { orgId: row.orgId };
 }
 
 export interface ApiKeySummary {
@@ -95,17 +104,17 @@ export interface ApiKeySummary {
 }
 
 export async function listApiKeys(args: { db: D1Database; orgId: string }): Promise<ApiKeySummary[]> {
-  const { results } = await args.db
-    .prepare('SELECT id, name, prefix, created_at, last_used_at FROM api_keys WHERE org_id = ? ORDER BY created_at DESC')
-    .bind(args.orgId)
-    .all<{ id: string; name: string; prefix: string; created_at: number; last_used_at: number | null }>();
-  return results.map((row) => ({
-    id: row.id,
-    name: row.name,
-    prefix: row.prefix,
-    createdAt: row.created_at,
-    lastUsedAt: row.last_used_at,
-  }));
+  return getDb(args.db)
+    .select({
+      id: apiKeys.id,
+      name: apiKeys.name,
+      prefix: apiKeys.prefix,
+      createdAt: apiKeys.createdAt,
+      lastUsedAt: apiKeys.lastUsedAt,
+    })
+    .from(apiKeys)
+    .where(eq(apiKeys.orgId, args.orgId))
+    .orderBy(desc(apiKeys.createdAt));
 }
 
 export async function revokeApiKey(args: {
@@ -115,17 +124,18 @@ export async function revokeApiKey(args: {
   apiKeyId: string;
 }): Promise<boolean> {
   const { db, kv, orgId, apiKeyId } = args;
-  const row = await db
-    .prepare('DELETE FROM api_keys WHERE id = ? AND org_id = ? RETURNING key_hash')
-    .bind(apiKeyId, orgId)
-    .first<{ key_hash: string }>();
+  const deleted = await getDb(db)
+    .delete(apiKeys)
+    .where(and(eq(apiKeys.id, apiKeyId), eq(apiKeys.orgId, orgId)))
+    .returning({ keyHash: apiKeys.keyHash });
+  const row = deleted[0];
   if (!row) return false;
 
   // Evict the verify cache so a revoked key stops working within one request,
   // not after the 300s TTL.
   if (kv) {
     try {
-      await kv.delete(kvCacheKey(row.key_hash));
+      await kv.delete(kvCacheKey(row.keyHash));
     } catch {
       // best-effort
     }
