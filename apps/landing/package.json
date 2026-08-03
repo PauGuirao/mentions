@@ -1,0 +1,26 @@
+{
+  "name": "@mentions/landing",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4321",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check",
+    "deploy": "astro build && wrangler deploy"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource-variable/geist-mono": "^5.2.8",
+    "astro": "^7.1.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@tailwindcss/vite": "^4.3.3",
+    "simple-icons": "^16.28.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}

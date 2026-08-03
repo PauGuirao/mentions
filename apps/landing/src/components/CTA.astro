@@ -1,0 +1,31 @@
+---
+import { APP_URL, DOCS_URL } from '../config';
+---
+
+<section class="border-b border-zinc-200 bg-zinc-950 text-zinc-50">
+  <div class="px-6 py-24 text-center">
+    <p class="font-mono text-xs tracking-[0.25em] text-zinc-500 uppercase">
+      [ 04 / 04 ] &middot; Start
+    </p>
+    <h2 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+      Start listening in five minutes
+    </h2>
+    <p class="mx-auto mt-3 max-w-xl text-zinc-400">Your first keyword is one request away.</p>
+    <pre
+      class="mx-auto mt-8 max-w-2xl overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-left font-mono text-sm leading-relaxed text-zinc-300"><code>curl -X POST "$MENTIONS_API_URL/v1/keywords" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  -d '&lbrace; "term": "your product", "kind": "brand" &rbrace;'</code></pre>
+    <div class="mt-8 flex justify-center gap-3">
+      <a
+        href={APP_URL}
+        class="rounded-full bg-zinc-50 px-6 py-2.5 font-medium text-zinc-900 hover:bg-zinc-200"
+        >Start tracking</a
+      >
+      <a
+        href={DOCS_URL}
+        class="rounded-full border border-zinc-700 px-6 py-2.5 font-medium text-zinc-200 hover:bg-zinc-800"
+        >Read the docs</a
+      >
+    </div>
+  </div>
+</section>

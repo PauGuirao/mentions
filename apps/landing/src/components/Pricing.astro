@@ -1,0 +1,132 @@
+---
+import {
+  FREE_KEYWORDS,
+  MENTION_UNIT,
+  POOL_PER_KEYWORD,
+  PRICE_PER_KEYWORD,
+  PRICE_PER_MENTION_UNIT,
+} from '../config';
+---
+
+<section id="pricing" class="border-b border-zinc-200">
+  <div class="px-6 pt-20 pb-12 text-center">
+    <p class="font-mono text-xs tracking-[0.25em] text-zinc-400 uppercase">
+      [ 03 / 04 ] &middot; Pricing
+    </p>
+    <h2 class="mx-auto mt-4 max-w-xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+      Pay for what you track, <span class="text-zinc-400">and what we find</span>
+    </h2>
+    <p class="mx-auto mt-4 max-w-xl text-lg text-zinc-600">
+      No seats. No tiers. Only relevant mentions count, and noise is free.
+    </p>
+  </div>
+
+  <div class="border-t border-zinc-200">
+    <div class="grid gap-px bg-zinc-200 sm:grid-cols-2">
+      <div class="bg-white p-10 text-center">
+        <p class="font-mono text-5xl font-semibold tracking-tight">
+          &euro;{PRICE_PER_KEYWORD}<span class="text-base font-normal text-zinc-500">/mo</span>
+        </p>
+        <p class="mt-2 text-sm text-zinc-500">
+          per keyword tracked, prorated daily, {POOL_PER_KEYWORD} relevant mentions included
+        </p>
+      </div>
+      <div class="bg-white p-10 text-center">
+        <p class="font-mono text-5xl font-semibold tracking-tight">
+          &euro;{PRICE_PER_MENTION_UNIT}
+        </p>
+        <p class="mt-2 text-sm text-zinc-500">
+          per extra {MENTION_UNIT.toLocaleString('en-US')} relevant mentions, pooled across your
+          account
+        </p>
+      </div>
+    </div>
+
+    <div class="border-t border-zinc-200 bg-zinc-50 px-6 py-10 sm:px-12">
+      <div class="mx-auto grid max-w-3xl gap-8 sm:grid-cols-2">
+        <label class="block">
+          <span class="flex justify-between text-sm">
+            <span class="text-zinc-600">Keywords</span>
+            <span class="font-mono" id="kw-value">5</span>
+          </span>
+          <input
+            id="kw"
+            type="range"
+            min="1"
+            max="25"
+            value="5"
+            class="mt-3 w-full accent-zinc-900"
+          />
+        </label>
+        <label class="block">
+          <span class="flex justify-between text-sm">
+            <span class="text-zinc-600">Relevant mentions per month</span>
+            <span class="font-mono" id="m-value">1,500</span>
+          </span>
+          <input
+            id="m"
+            type="range"
+            min="0"
+            max="20000"
+            step="100"
+            value="1500"
+            class="mt-3 w-full accent-zinc-900"
+          />
+        </label>
+      </div>
+      <p class="mt-8 text-center text-sm text-zinc-500">
+        Your bill: <span class="font-mono text-2xl font-semibold text-zinc-900" id="total"
+          >&euro;25</span
+        > <span class="text-zinc-500">/month</span>
+      </p>
+      <p class="mt-2 text-center text-xs text-zinc-500" id="breakdown">
+        2,500 mentions included, no overage
+      </p>
+      <p class="mx-auto mt-6 max-w-2xl text-center text-sm text-zinc-500">
+        Every keyword adds {POOL_PER_KEYWORD} relevant mentions to a shared monthly pool, and
+        partial thousands past it are free. Start free with {FREE_KEYWORDS} keywords, no
+        subscription needed.
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  import {
+    MENTION_UNIT,
+    POOL_PER_KEYWORD,
+    PRICE_PER_KEYWORD,
+    PRICE_PER_MENTION_UNIT,
+  } from '../config';
+
+  const kw = document.getElementById('kw') as HTMLInputElement;
+  const m = document.getElementById('m') as HTMLInputElement;
+  const kwValue = document.getElementById('kw-value')!;
+  const mValue = document.getElementById('m-value')!;
+  const total = document.getElementById('total')!;
+  const breakdown = document.getElementById('breakdown')!;
+
+  const fmt = (n: number) => n.toLocaleString('en-US');
+
+  function update() {
+    const keywords = Number(kw.value);
+    const mentions = Number(m.value);
+    kwValue.textContent = String(keywords);
+    mValue.textContent = fmt(mentions);
+
+    const included = keywords * POOL_PER_KEYWORD;
+    const overage = Math.max(0, mentions - included);
+    const units = Math.floor(overage / MENTION_UNIT);
+    const bill = keywords * PRICE_PER_KEYWORD + units * PRICE_PER_MENTION_UNIT;
+
+    total.textContent = `€${fmt(bill)}`;
+    breakdown.textContent =
+      units > 0
+        ? `${fmt(included)} mentions included + ${units} overage unit${units === 1 ? '' : 's'} of ${fmt(MENTION_UNIT)}`
+        : `${fmt(included)} mentions included, no overage`;
+  }
+
+  kw.addEventListener('input', update);
+  m.addEventListener('input', update);
+  update();
+</script>

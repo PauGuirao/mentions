@@ -1,0 +1,60 @@
+---
+/**
+ * Inline SVG logo for a source platform, from simple-icons (official brand
+ * paths + colors). Hacker News uses the Y Combinator mark; News uses RSS.
+ */
+import {
+  siBluesky,
+  siDevdotto,
+  siGithub,
+  siReddit,
+  siRss,
+  siStackoverflow,
+  siX,
+  siYcombinator,
+  siYoutube,
+} from 'simple-icons';
+
+export type Platform =
+  | 'bluesky'
+  | 'hackernews'
+  | 'github'
+  | 'devto'
+  | 'reddit'
+  | 'news'
+  | 'x'
+  | 'youtube'
+  | 'stackoverflow';
+
+interface Props {
+  platform: Platform;
+  colored?: boolean;
+  class?: string;
+}
+
+const ICONS: Record<Platform, { path: string; hex: string; label: string }> = {
+  bluesky: { path: siBluesky.path, hex: siBluesky.hex, label: 'Bluesky' },
+  hackernews: { path: siYcombinator.path, hex: siYcombinator.hex, label: 'Hacker News' },
+  github: { path: siGithub.path, hex: siGithub.hex, label: 'GitHub' },
+  devto: { path: siDevdotto.path, hex: siDevdotto.hex, label: 'DEV' },
+  reddit: { path: siReddit.path, hex: siReddit.hex, label: 'Reddit' },
+  news: { path: siRss.path, hex: siRss.hex, label: 'News' },
+  x: { path: siX.path, hex: siX.hex, label: 'X' },
+  youtube: { path: siYoutube.path, hex: siYoutube.hex, label: 'YouTube' },
+  stackoverflow: { path: siStackoverflow.path, hex: siStackoverflow.hex, label: 'Stack Overflow' },
+};
+
+const { platform, colored = true, class: className } = Astro.props;
+const icon = ICONS[platform];
+---
+
+<svg
+  viewBox="0 0 24 24"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-label={icon.label}
+  class={className}
+  fill={colored ? `#${icon.hex}` : 'currentColor'}
+>
+  <path d={icon.path}></path>
+</svg>

@@ -1,0 +1,33 @@
+---
+import PlatformIcon from './PlatformIcon.astro';
+import type { Platform } from './PlatformIcon.astro';
+
+const sources: Array<{ platform: Platform; name: string; freshness: string }> = [
+  { platform: 'bluesky', name: 'Bluesky', freshness: 'real time' },
+  { platform: 'hackernews', name: 'Hacker News', freshness: '~1 min' },
+  { platform: 'github', name: 'GitHub', freshness: '~5 min' },
+  { platform: 'devto', name: 'DEV', freshness: '~5 min' },
+  { platform: 'reddit', name: 'Reddit', freshness: '~10 min' },
+  { platform: 'news', name: 'News', freshness: '~30 min' },
+  { platform: 'x', name: 'X', freshness: '~1 h' },
+  { platform: 'youtube', name: 'YouTube', freshness: '~12 h' },
+  { platform: 'stackoverflow', name: 'Stack Overflow', freshness: '~24 h' },
+];
+---
+
+<section class="border-b border-zinc-200">
+  <p class="px-6 pt-10 pb-8 text-center text-sm text-zinc-500">
+    Watching the places developers actually talk, as fast as each platform allows
+  </p>
+  <div class="grid grid-cols-3 gap-px border-t border-zinc-200 bg-zinc-200 lg:grid-cols-9">
+    {
+      sources.map((source) => (
+        <div class="flex flex-col items-center gap-2 bg-white px-2 py-6">
+          <PlatformIcon platform={source.platform} class="size-6" />
+          <span class="text-xs font-medium whitespace-nowrap">{source.name}</span>
+          <span class="font-mono text-[11px] text-zinc-400">{source.freshness}</span>
+        </div>
+      ))
+    }
+  </div>
+</section>

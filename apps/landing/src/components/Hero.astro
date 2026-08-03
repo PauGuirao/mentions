@@ -1,0 +1,218 @@
+---
+import { APP_URL, DOCS_URL } from '../config';
+import PlatformIcon from './PlatformIcon.astro';
+import type { Platform } from './PlatformIcon.astro';
+
+interface Row {
+  platform: Platform;
+  source: string;
+  keyword: string;
+  time: string;
+  text: string;
+  sentiment: string;
+  dot: string;
+  rel: number;
+  intent: string;
+}
+
+const rows: Row[] = [
+  {
+    platform: 'bluesky',
+    source: 'Bluesky',
+    keyword: 'competitor x',
+    time: 'just now',
+    text: 'Honestly considering switching, their pricing changes pushed us over the edge. Any alternatives?',
+    sentiment: 'Negative',
+    dot: 'bg-red-500',
+    rel: 91,
+    intent: 'comparison',
+  },
+  {
+    platform: 'hackernews',
+    source: 'Hacker News',
+    keyword: 'your product',
+    time: '2m ago',
+    text: 'We migrated our side project last month and the DX was surprisingly good. The ingest pipeline took an afternoon.',
+    sentiment: 'Positive',
+    dot: 'bg-emerald-500',
+    rel: 86,
+    intent: 'praise',
+  },
+  {
+    platform: 'reddit',
+    source: 'Reddit',
+    keyword: 'your product',
+    time: '9m ago',
+    text: 'Is anyone using this in production? Wondering about latency before we commit to the migration.',
+    sentiment: 'Neutral',
+    dot: 'bg-zinc-400',
+    rel: 74,
+    intent: 'buy intent',
+  },
+  {
+    platform: 'github',
+    source: 'GitHub',
+    keyword: 'your product',
+    time: '14m ago',
+    text: 'Opened an issue: would love an official Terraform provider. Happy to contribute if there is interest.',
+    sentiment: 'Neutral',
+    dot: 'bg-zinc-400',
+    rel: 68,
+    intent: 'question',
+  },
+];
+
+/**
+ * Decorative hero backdrop: a fixed-width cell grid centered behind the copy,
+ * with platform logos and soft tints living in specific squares. The grid is
+ * wider than most viewports and the outer columns simply fade or crop away.
+ */
+const COLS = 16;
+const ROWS = 9;
+const CELL = 80;
+
+function idx(col: number, row: number) {
+  return row * COLS + col;
+}
+
+const logoAt = new Map<number, Platform>([
+  [idx(2, 1), 'bluesky'],
+  [idx(13, 1), 'github'],
+  [idx(1, 3), 'hackernews'],
+  [idx(14, 3), 'x'],
+  [idx(3, 5), 'reddit'],
+  [idx(12, 5), 'stackoverflow'],
+  [idx(4, 7), 'devto'],
+  [idx(11, 7), 'youtube'],
+]);
+
+const tintAt = new Map<number, string>([
+  [idx(5, 0), 'bg-zinc-50'],
+  [idx(12, 0), 'bg-indigo-50/60'],
+  [idx(0, 2), 'bg-indigo-50/60'],
+  [idx(15, 5), 'bg-zinc-50'],
+  [idx(10, 2), 'bg-zinc-50'],
+  [idx(6, 8), 'bg-zinc-50'],
+]);
+---
+
+<section class="relative overflow-hidden border-b border-zinc-200">
+  <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+    <div
+      class="absolute top-0 left-1/2 -translate-x-1/2"
+      style={`width:${COLS * CELL}px;height:${ROWS * CELL}px`}
+    >
+      <div
+        class="grid"
+        style={`grid-template-columns:repeat(${COLS},${CELL}px);grid-auto-rows:${CELL}px`}
+      >
+        {
+          Array.from({ length: COLS * ROWS }, (_, i) => (
+            <div
+              class={`flex items-center justify-center border-r border-b border-zinc-100 ${tintAt.get(i) ?? ''}`}
+            >
+              {logoAt.has(i) && (
+                <PlatformIcon platform={logoAt.get(i)!} class="size-6 opacity-80" />
+              )}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+    <div class="absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-white to-transparent"></div>
+    <div class="absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-white to-transparent"></div>
+    <div class="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white to-transparent"></div>
+    <div class="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent to-white"></div>
+  </div>
+
+  <div class="relative mx-auto max-w-6xl px-6 pt-24 pb-10 text-center sm:pt-32">
+    <p class="font-mono text-xs tracking-[0.25em] text-zinc-500 uppercase">
+      Social listening for dev platforms
+    </p>
+    <h1
+      class="mx-auto mt-6 max-w-4xl text-5xl font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl"
+    >
+      Know when developers <span class="text-indigo-600">mention you</span>
+    </h1>
+    <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-zinc-600">
+      Mentions watches Bluesky, Hacker News, Reddit, X, GitHub, Stack Overflow, DEV, YouTube and
+      the news for your keywords, scores every hit with AI, and surfaces the conversations that
+      matter.
+    </p>
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <a
+        href={APP_URL}
+        class="rounded-full bg-zinc-900 px-6 py-2.5 font-medium text-zinc-50 hover:bg-zinc-700"
+        >Start tracking</a
+      >
+      <a
+        href={DOCS_URL}
+        class="rounded-full border border-zinc-300 bg-white px-6 py-2.5 font-medium text-zinc-700 hover:bg-zinc-50"
+        >Read the docs</a
+      >
+    </div>
+    <p class="mt-5 text-sm text-zinc-500">
+      Usage-based pricing. Real-time on every account. No sales calls.
+    </p>
+  </div>
+
+  <div class="relative mx-auto max-w-4xl px-6 pb-24" aria-hidden="true">
+    <div
+      class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl shadow-zinc-900/5"
+    >
+      <div class="flex items-center border-b border-zinc-200 bg-zinc-50 px-4 py-2.5">
+        <span class="flex gap-1.5">
+          <span class="size-2.5 rounded-full bg-zinc-200"></span>
+          <span class="size-2.5 rounded-full bg-zinc-200"></span>
+          <span class="size-2.5 rounded-full bg-zinc-200"></span>
+        </span>
+        <span
+          class="mx-auto rounded-md bg-white px-8 py-1 font-mono text-[11px] text-zinc-400 ring-1 ring-zinc-200"
+          >app.mentions.dev/inbox</span
+        >
+        <span class="w-[52px]"></span>
+      </div>
+      <div class="flex items-center gap-2 border-b border-zinc-200 px-4 py-2.5 text-xs">
+        <span class="font-semibold">Inbox</span>
+        <span class="rounded-full bg-zinc-100 px-2 py-0.5 font-mono text-[11px] text-zinc-600"
+          >128 new</span
+        >
+        <span class="ml-auto rounded-md border border-zinc-200 px-2 py-1 text-zinc-500"
+          >All sources</span
+        >
+        <span class="rounded-md border border-zinc-200 px-2 py-1 font-mono text-zinc-500"
+          >rel &ge; 60</span
+        >
+      </div>
+      <div class="divide-y divide-zinc-100">
+        {
+          rows.map((row) => (
+            <div class="flex items-start gap-3 px-4 py-3.5 text-left">
+              <span class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-zinc-50 ring-1 ring-zinc-200">
+                <PlatformIcon platform={row.platform} class="size-3.5" />
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="font-medium">{row.source}</span>
+                  <span class="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] text-zinc-600">
+                    {row.keyword}
+                  </span>
+                  <span class="ml-auto text-zinc-400">{row.time}</span>
+                </div>
+                <p class="mt-1 text-sm leading-snug text-zinc-700">{row.text}</p>
+                <div class="mt-1.5 flex items-center gap-3 text-[11px] text-zinc-500">
+                  <span class="flex items-center gap-1.5">
+                    <span class={`size-1.5 rounded-full ${row.dot}`} />
+                    {row.sentiment}
+                  </span>
+                  <span class="font-mono">rel {row.rel}</span>
+                  <span class="rounded border border-zinc-200 px-1.5 py-px">{row.intent}</span>
+                </div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
