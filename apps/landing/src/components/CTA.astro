@@ -12,8 +12,8 @@ import { APP_URL, DOCS_URL } from '../config';
     </h2>
     <p class="mx-auto mt-3 max-w-xl text-zinc-400">Your first keyword is one request away.</p>
     <pre
-      class="mx-auto mt-8 max-w-2xl overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-left font-mono text-sm leading-relaxed text-zinc-300"><code>curl -X POST "$MENTIONS_API_URL/v1/keywords" \
-  -H "Authorization: Bearer $MENTIONS_API_KEY" \
+      class="mx-auto mt-8 max-w-2xl overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-left font-mono text-sm leading-relaxed text-zinc-300"><code>curl -X POST "https://api.mentio.dev/v1/keywords" \
+  -H "Authorization: Bearer $MENTIO_API_KEY" \
   -d '&lbrace; "term": "your product", "kind": "brand" &rbrace;'</code></pre>
     <div class="mt-8 flex justify-center gap-3">
       <a

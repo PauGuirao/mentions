@@ -2,9 +2,15 @@
 import '../styles/global.css';
 import { APP_URL, DOCS_URL } from '../config';
 
-const title = 'Mentions: social listening for dev platforms';
-const description =
-  'Track keyword and brand mentions across Bluesky, Hacker News, Reddit, X, GitHub and more. AI-scored, delivered anywhere, priced by usage. API and MCP first.';
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'Mentio: social listening for dev platforms',
+  description = 'Track keyword and brand mentions across Bluesky, Hacker News, Reddit, X, GitHub and more. AI-scored, delivered anywhere, priced by usage. API and MCP first.',
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -28,7 +34,7 @@ const description =
               class="flex size-6 items-center justify-center rounded-md bg-zinc-900 font-mono text-sm font-bold text-zinc-50"
               >@</span
             >
-            <span class="font-semibold tracking-tight">Mentions</span>
+            <span class="font-semibold tracking-tight">Mentio</span>
           </a>
           <div class="ml-auto flex items-center gap-1 text-sm">
             <a
@@ -63,15 +69,18 @@ const description =
               class="flex size-6 items-center justify-center rounded-md bg-zinc-900 font-mono text-sm font-bold text-zinc-50"
               >@</span
             >
-            <span class="font-semibold tracking-tight">Mentions</span>
+            <span class="font-semibold tracking-tight">Mentio</span>
             <span class="ml-2 text-sm text-zinc-500">Social listening for dev platforms.</span>
           </div>
-          <div class="flex gap-5 text-sm text-zinc-600">
+          <div class="flex flex-wrap gap-5 text-sm text-zinc-600">
+            <a href="/#pricing" class="hover:text-zinc-900">Pricing</a>
             <a href={DOCS_URL} class="hover:text-zinc-900">Docs</a>
             <a href={`${DOCS_URL}/api/keywords/create-keyword`} class="hover:text-zinc-900"
               >API reference</a
             >
             <a href={`${DOCS_URL}/mcp`} class="hover:text-zinc-900">MCP</a>
+            <a href="/privacy" class="hover:text-zinc-900">Privacy</a>
+            <a href="/terms" class="hover:text-zinc-900">Terms</a>
           </div>
         </div>
       </footer>

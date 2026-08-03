@@ -1,0 +1,24 @@
+---
+import Layout from './Layout.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  updated: string;
+}
+
+const { title, description, updated } = Astro.props;
+---
+
+<Layout title={`${title} | Mentio`} description={description}>
+  <article class="mx-auto max-w-3xl px-6 py-16 sm:py-20">
+    <p class="font-mono text-xs tracking-[0.25em] text-zinc-400 uppercase">Legal</p>
+    <h1 class="mt-4 text-4xl font-semibold tracking-tight">{title}</h1>
+    <p class="mt-2 text-sm text-zinc-500">Last updated: {updated}</p>
+    <div
+      class="mt-10 space-y-4 leading-relaxed text-zinc-700 [&_a]:underline [&_a]:underline-offset-4 [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-zinc-900 [&_strong]:font-medium [&_strong]:text-zinc-900 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-6"
+    >
+      <slot />
+    </div>
+  </article>
+</Layout>

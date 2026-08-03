@@ -1,0 +1,107 @@
+---
+import LegalPage from '../layouts/LegalPage.astro';
+---
+
+<LegalPage
+  title="Privacy Policy"
+  description="How Mentio collects, uses, and protects your data."
+  updated="August 3, 2026"
+>
+  <p>
+    Mentio ("we", "us") is a social listening service for developer platforms, available at
+    <a href="https://mentio.dev">mentio.dev</a>. This policy explains what data we collect, why we
+    collect it, and the choices you have. Questions or requests: write to
+    <a href="mailto:support@mentio.dev">support@mentio.dev</a>.
+  </p>
+
+  <h2>Data you give us</h2>
+  <ul>
+    <li>
+      <strong>Account data.</strong> Your name, email address, and a password (stored only as a
+      salted hash) when you sign up, or your Google account identity if you sign in with Google.
+    </li>
+    <li>
+      <strong>Workspace data.</strong> The keywords you track, your company profile and context,
+      feed and notification settings, and anything else you configure in the product.
+    </li>
+    <li>
+      <strong>Integration credentials.</strong> If you connect Slack, we store the workspace name,
+      ids, and the bot token Slack issues so we can post notifications to the channel you pick.
+      Disconnecting removes the token and we ask Slack to revoke it. API keys you mint are stored
+      only as hashes and are shown to you once.
+    </li>
+  </ul>
+
+  <h2>Data we collect automatically</h2>
+  <ul>
+    <li>
+      <strong>Usage and billing counters.</strong> Active keyword counts and relevant mention
+      counts per billing cycle, which determine your bill.
+    </li>
+    <li>
+      <strong>Service logs.</strong> Standard operational logs (timestamps, request metadata,
+      errors) kept for reliability and abuse prevention.
+    </li>
+  </ul>
+  <p>
+    We use <strong>essential cookies only</strong>: a session cookie to keep you signed in. No
+    advertising or cross-site tracking cookies.
+  </p>
+
+  <h2>Public content we process</h2>
+  <p>
+    The product works by monitoring publicly available posts on platforms such as Bluesky, Hacker
+    News, Reddit, X, GitHub, Stack Overflow, DEV, YouTube, and news sources. For matched posts we
+    store the public text, link, and author handle, and classify them with AI (relevance,
+    sentiment, intent) so you can filter your feed. This is public data, processed to provide the
+    service. If a post is deleted at its source it may persist in our index; authors can request
+    removal at <a href="mailto:support@mentio.dev">support@mentio.dev</a>.
+  </p>
+
+  <h2>How we use data</h2>
+  <p>
+    To provide and improve the service, deliver the notifications you configure, bill usage,
+    secure the platform, and communicate with you about your account. We do not sell personal
+    data and we do not run ads. AI classification runs on Cloudflare Workers AI; we do not use
+    your data or monitored content to train our own models.
+  </p>
+
+  <h2>Who we share data with</h2>
+  <ul>
+    <li><strong>Cloudflare</strong>: hosting, storage, and AI inference for the entire service.</li>
+    <li>
+      <strong>Polar</strong>: our merchant of record. Payments, invoices, and card details are
+      handled by Polar; we never see or store your payment card data.
+    </li>
+    <li><strong>Slack</strong>: only if you connect it, to post notifications you configure.</li>
+    <li><strong>Google</strong>: only if you choose Google sign-in.</li>
+  </ul>
+
+  <h2>Retention and deletion</h2>
+  <p>
+    Account and workspace data is kept while your account is active and deleted when you ask us
+    to close it. Billing records are kept as long as law requires. Monitored public posts live in
+    a shared index; deleting your account removes your organization's associations with them.
+  </p>
+
+  <h2>Your rights</h2>
+  <p>
+    If you are in the EU/EEA (GDPR) or a similar jurisdiction, you can request access,
+    correction, deletion, portability, or restriction of your personal data, and object to
+    processing, by emailing <a href="mailto:support@mentio.dev">support@mentio.dev</a>. You can
+    also lodge a complaint with your local supervisory authority.
+  </p>
+
+  <h2>Security</h2>
+  <p>
+    All traffic is encrypted in transit. Passwords and API keys are stored hashed, integration
+    tokens are scoped to the minimum permissions the feature needs, and access to production data
+    is restricted.
+  </p>
+
+  <h2>Changes</h2>
+  <p>
+    We will update this policy as the service evolves and change the date above. Material changes
+    will be announced in the product or by email.
+  </p>
+</LegalPage>
