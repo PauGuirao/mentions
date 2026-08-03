@@ -75,7 +75,9 @@ function LoginPage() {
         return;
       }
       markLoggedIn();
-      await navigate({ to: '/mentions' });
+      // Fresh signups go straight to onboarding; the root layout gate also
+      // catches any logged-in user whose workspace was never onboarded.
+      await navigate({ to: mode === 'signup' ? '/onboarding' : '/mentions' });
     } finally {
       setPending(false);
     }

@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SourceIcon } from '@/components/source-icon';
 import { SOURCE_LABELS, capitalize, fullDate, relativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -30,7 +31,10 @@ export function MentionCard({
   return (
     <Card className={cn('gap-2.5 p-4', mention.state === 'ignored' && 'opacity-60')}>
       <div className="flex items-center gap-2">
-        <Badge variant="outline">{SOURCE_LABELS[mention.source]}</Badge>
+        <Badge variant="outline">
+          <SourceIcon source={mention.source} />
+          {SOURCE_LABELS[mention.source]}
+        </Badge>
         <Badge variant="secondary" className="font-mono text-xs">
           {mention.keywordTerm}
         </Badge>

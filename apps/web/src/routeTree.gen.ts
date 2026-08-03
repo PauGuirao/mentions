@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as KeywordsRouteImport } from './routes/keywords'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsRouteImport } from './routes/mentions'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as SettingsRouteImport } from './routes/settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const MentionsRoute = MentionsRouteImport.update({
   path: '/mentions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/keywords': typeof KeywordsRoute
   '/login': typeof LoginRoute
   '/mentions': typeof MentionsRoute
+  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/keywords': typeof KeywordsRoute
   '/login': typeof LoginRoute
   '/mentions': typeof MentionsRoute
+  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,23 @@ export interface FileRoutesById {
   '/keywords': typeof KeywordsRoute
   '/login': typeof LoginRoute
   '/mentions': typeof MentionsRoute
+  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/keywords' | '/login' | '/mentions' | '/settings'
+  fullPaths:
+    '/' | '/keywords' | '/login' | '/mentions' | '/onboarding' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/keywords' | '/login' | '/mentions' | '/settings'
-  id: '__root__' | '/' | '/keywords' | '/login' | '/mentions' | '/settings'
+  to: '/' | '/keywords' | '/login' | '/mentions' | '/onboarding' | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/keywords'
+    | '/login'
+    | '/mentions'
+    | '/onboarding'
+    | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +93,7 @@ export interface RootRouteChildren {
   KeywordsRoute: typeof KeywordsRoute
   LoginRoute: typeof LoginRoute
   MentionsRoute: typeof MentionsRoute
+  OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -109,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MentionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -124,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   KeywordsRoute: KeywordsRoute,
   LoginRoute: LoginRoute,
   MentionsRoute: MentionsRoute,
+  OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport

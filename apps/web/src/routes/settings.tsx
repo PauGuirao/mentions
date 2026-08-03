@@ -1,5 +1,7 @@
+import type { CompanyProfile } from '@mentions/core/schemas';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
+import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
@@ -19,7 +21,8 @@ import { ApiError, api, getApiKey, getApiUrl, hasApiKey, hasCredentials, setApiK
 
 export const Route = createFileRoute('/settings')({ component: SettingsPage });
 
-const CONTEXT_MAX = 4000;
+const DESCRIPTION_MAX = 2000;
+const MAX_USE_CASES = 10;
 
 function SettingsPage() {
   const queryClient = useQueryClient();
@@ -51,7 +54,7 @@ function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="px-6 py-6">
       <PageHeader title="Settings" description="Connection and classifier context." />
 
       <div className="space-y-6">
@@ -67,6 +70,7 @@ function SettingsPage() {
               <Label htmlFor="api-url">API base URL</Label>
               <Input
                 id="api-url"
+                autoComplete="off"
                 placeholder="Same origin (recommended)"
                 value={apiUrl}
                 onChange={(event) => setApiUrlState(event.target.value)}
@@ -82,6 +86,7 @@ function SettingsPage() {
               <Input
                 id="api-key"
                 type="password"
+                autoComplete="new-password"
                 placeholder="mk_live_..."
                 value={apiKey}
                 onChange={(event) => setApiKeyState(event.target.value)}
@@ -95,66 +100,166 @@ function SettingsPage() {
           </CardFooter>
         </Card>
 
-        <CompanyContextCard />
+        <CompanyProfileCard />
       </div>
     </div>
   );
 }
 
-function CompanyContextCard() {
+function CompanyProfileCard() {
   const queryClient = useQueryClient();
-  const [context, setContext] = useState('');
-  const contextQuery = useQuery({
-    queryKey: ['company'],
-    queryFn: api.getCompanyContext,
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [useCases, setUseCases] = useState<string[]>([]);
+  const [xAccount, setXAccount] = useState('');
+  const [linkedinAccount, setLinkedinAccount] = useState('');
+
+  const profileQuery = useQuery({
+    queryKey: ['companyProfile'],
+    queryFn: api.getCompanyProfile,
     enabled: hasCredentials(),
   });
 
   useEffect(() => {
-    if (contextQuery.data) setContext(contextQuery.data.context);
-  }, [contextQuery.data]);
+    const profile = profileQuery.data;
+    if (!profile) return;
+    setName(profile.name);
+    setDescription(profile.description);
+    setUseCases(profile.useCases);
+    setXAccount(profile.xAccount ?? '');
+    setLinkedinAccount(profile.linkedinAccount ?? '');
+  }, [profileQuery.data]);
 
   const saveMutation = useMutation({
-    mutationFn: () => api.setCompanyContext(context),
-    onSuccess: () => {
-      toast.success('Company context saved');
-      void queryClient.invalidateQueries({ queryKey: ['company'] });
+    mutationFn: () => {
+      const profile: CompanyProfile = {
+        name: name.trim(),
+        description: description.trim(),
+        useCases: useCases.map((u) => u.trim()).filter((u) => u !== ''),
+        xAccount: xAccount.trim().replace(/^@/, '') || null,
+        linkedinAccount: linkedinAccount.trim() || null,
+      };
+      return api.setCompanyProfile(profile);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to save context'),
+    onSuccess: () => {
+      toast.success('Company profile saved');
+      void queryClient.invalidateQueries({ queryKey: ['companyProfile'] });
+      void queryClient.invalidateQueries({ queryKey: ['company'] });
+      // The profile name is the sidebar brand name.
+      void queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to save profile'),
   });
+
+  const disabled = !hasCredentials() || profileQuery.isLoading;
+  const setUseCase = (index: number, value: string) =>
+    setUseCases(useCases.map((u, i) => (i === index ? value : u)));
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Company context</CardTitle>
+        <CardTitle>Company profile</CardTitle>
         <CardDescription>
-          What your company does, products, competitors. Fed verbatim to the classifier; the
-          single biggest relevance lever.
+          Used to personalize relevance scoring: the classifier context is built from this
+          profile, so the more specific it is, the better your feed gets.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-2">
-        <Textarea
-          rows={8}
-          maxLength={CONTEXT_MAX}
-          placeholder={
-            hasCredentials()
-              ? 'We build X for Y. Our products are... Our competitors are...'
-              : 'Sign in or connect an API key to edit the company context.'
-          }
-          value={context}
-          onChange={(event) => setContext(event.target.value)}
-          disabled={!hasCredentials() || contextQuery.isLoading}
-        />
-        <p className="text-right text-xs text-muted-foreground">
-          {context.length}/{CONTEXT_MAX}
-        </p>
+      <CardContent className="grid gap-5">
+        <div className="grid gap-2">
+          <Label htmlFor="company-name">Company name</Label>
+          <Input
+            id="company-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="company-description">Company description</Label>
+          <Textarea
+            id="company-description"
+            rows={5}
+            maxLength={DESCRIPTION_MAX}
+            placeholder="We build X for Y. Our product does..."
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            disabled={disabled}
+          />
+          <p className="text-right text-xs text-muted-foreground">
+            {description.length}/{DESCRIPTION_MAX}
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <div className="flex items-center gap-2">
+            <Label>Product use cases</Label>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Add use case"
+              onClick={() => setUseCases([...useCases, ''])}
+              disabled={disabled || useCases.length >= MAX_USE_CASES}
+            >
+              <Plus />
+            </Button>
+          </div>
+          {useCases.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Concrete jobs your product is hired for. One per line, added with the plus button.
+            </p>
+          ) : null}
+          {useCases.map((useCase, index) => (
+            // Index keys are fine: rows are only appended/removed by position.
+            // eslint-disable-next-line react/no-array-index-key
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                value={useCase}
+                placeholder="Add cross-platform publishing to a SaaS product"
+                onChange={(event) => setUseCase(index, event.target.value)}
+                disabled={disabled}
+              />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Remove use case"
+                onClick={() => setUseCases(useCases.filter((_, i) => i !== index))}
+                disabled={disabled}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="x-account">X/Twitter account</Label>
+          <Input
+            id="x-account"
+            placeholder="Company username without the @"
+            value={xAccount}
+            onChange={(event) => setXAccount(event.target.value)}
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="linkedin-account">LinkedIn account</Label>
+          <Input
+            id="linkedin-account"
+            placeholder="Company LinkedIn name as shown in your profile"
+            value={linkedinAccount}
+            onChange={(event) => setLinkedinAccount(event.target.value)}
+            disabled={disabled}
+          />
+        </div>
       </CardContent>
       <CardFooter>
         <Button
           onClick={() => saveMutation.mutate()}
-          disabled={!hasCredentials() || saveMutation.isPending}
+          disabled={disabled || saveMutation.isPending || name.trim() === ''}
         >
-          {saveMutation.isPending ? 'Saving...' : 'Save context'}
+          {saveMutation.isPending ? 'Saving...' : 'Save profile'}
         </Button>
       </CardFooter>
     </Card>

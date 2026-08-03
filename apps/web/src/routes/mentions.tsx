@@ -6,11 +6,14 @@ import {
 } from '@mentions/core/schemas';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Search } from 'lucide-react';
+import { LayoutList, Search, Table2 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { MentionCard } from '@/components/mention-card';
+import { MentionTable } from '@/components/mention-table';
 import { PageHeader } from '@/components/page-header';
+import { SourceIcon } from '@/components/source-icon';
 import { QueryError } from '@/components/query-error';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -47,11 +50,23 @@ export const Route = createFileRoute('/mentions')({
 const STATES = matchStateSchema.options;
 const SENTIMENTS = sentimentSchema.options;
 
+type MentionsView = 'cards' | 'table';
+const VIEW_STORAGE = 'mentions.view';
+
+const getStoredView = (): MentionsView =>
+  localStorage.getItem(VIEW_STORAGE) === 'table' ? 'table' : 'cards';
+
 function MentionsPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
   const keywordsQuery = useKeywords();
+  const [view, setView] = useState<MentionsView>(getStoredView);
+
+  const switchView = (next: MentionsView) => {
+    setView(next);
+    localStorage.setItem(VIEW_STORAGE, next);
+  };
 
   const mentionsQuery = useInfiniteQuery({
     queryKey: ['mentions', search],
@@ -79,7 +94,7 @@ function MentionsPage() {
   const keywords = keywordsQuery.data?.keywords ?? [];
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="px-6 py-6">
       <PageHeader
         title="Mentions"
         description="Everything the pipeline matched for your keywords, newest first."
@@ -116,7 +131,10 @@ function MentionsPage() {
             <SelectItem value="all">All sources</SelectItem>
             {SOURCES.map((source) => (
               <SelectItem key={source} value={source}>
-                {SOURCE_LABELS[source]}
+                <span className="flex items-center gap-2">
+                  <SourceIcon source={source} />
+                  {SOURCE_LABELS[source]}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -204,6 +222,27 @@ function MentionsPage() {
             Clear
           </Button>
         ) : null}
+
+        <div className="ml-auto flex items-center gap-0.5 rounded-md border border-border p-0.5">
+          <Button
+            variant={view === 'cards' ? 'secondary' : 'ghost'}
+            size="icon-sm"
+            aria-label="Card view"
+            title="Card view"
+            onClick={() => switchView('cards')}
+          >
+            <LayoutList />
+          </Button>
+          <Button
+            variant={view === 'table' ? 'secondary' : 'ghost'}
+            size="icon-sm"
+            aria-label="Table view"
+            title="Table view"
+            onClick={() => switchView('table')}
+          >
+            <Table2 />
+          </Button>
+        </div>
       </div>
 
       {mentionsQuery.isPending ? (
@@ -234,15 +273,22 @@ function MentionsPage() {
         </Card>
       ) : (
         <>
-          <div className="space-y-3">
-            {mentions.map((mention) => (
-              <MentionCard
-                key={mention.id}
-                mention={mention}
-                onSetState={(state) => stateMutation.mutate({ id: mention.id, state })}
-              />
-            ))}
-          </div>
+          {view === 'table' ? (
+            <MentionTable
+              mentions={mentions}
+              onSetState={(id, state) => stateMutation.mutate({ id, state })}
+            />
+          ) : (
+            <div className="space-y-3">
+              {mentions.map((mention) => (
+                <MentionCard
+                  key={mention.id}
+                  mention={mention}
+                  onSetState={(state) => stateMutation.mutate({ id: mention.id, state })}
+                />
+              ))}
+            </div>
+          )}
           <div className="mt-6 flex justify-center">
             {mentionsQuery.hasNextPage ? (
               <Button

@@ -6,16 +6,22 @@ import {
   useLocation,
   useNavigate,
 } from '@tanstack/react-router';
-import { LogOut, Radio, Settings, Tag } from 'lucide-react';
+import { House, Radio, Settings, Tag } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Toaster } from '@/components/ui/sonner';
+import { UserMenu } from '@/components/user-menu';
 import { hasCredentials } from '@/lib/api';
-import { authClient, clearLoggedIn } from '@/lib/auth-client';
+import { useMe } from '@/lib/queries';
 
 const NAV = [
+  { to: '/', label: 'Home', icon: House },
   { to: '/mentions', label: 'Mentions', icon: Radio },
   { to: '/keywords', label: 'Keywords', icon: Tag },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const;
+
+/** Routes that own the full viewport; no sidebar chrome. */
+const BARE_ROUTES = new Set(['/login', '/onboarding']);
 
 export const Route = createRootRoute({
   beforeLoad: ({ location }) => {
@@ -26,11 +32,41 @@ export const Route = createRootRoute({
   component: RootLayout,
 });
 
+function BrandMark({ logoUrl }: { logoUrl: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (logoUrl && !failed) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        className="size-6 shrink-0 rounded-md object-contain"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary font-mono text-sm font-bold text-primary-foreground">
+      @
+    </span>
+  );
+}
+
 function RootLayout() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const meQuery = useMe();
+  const org = meQuery.data?.orgs[0];
 
-  // The login screen owns the full viewport; no sidebar chrome.
-  if (pathname === '/login') {
+  // Session users whose workspace has not been onboarded are sent to the
+  // onboarding flow before anything else. API-key-only users have no session
+  // (useMe stays disabled) and are never gated.
+  useEffect(() => {
+    if (org && !org.onboarded && !BARE_ROUTES.has(pathname)) {
+      void navigate({ to: '/onboarding' });
+    }
+  }, [org, pathname, navigate]);
+
+  if (BARE_ROUTES.has(pathname)) {
     return (
       <>
         <Outlet />
@@ -41,12 +77,12 @@ function RootLayout() {
 
   return (
     <div className="min-h-screen">
-      <aside className="fixed inset-y-0 left-0 flex w-56 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <aside className="fixed inset-y-0 left-0 flex w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-5">
-          <span className="flex size-6 items-center justify-center rounded-md bg-primary font-mono text-sm font-bold text-primary-foreground">
-            @
+          <BrandMark logoUrl={org?.logoUrl ?? null} />
+          <span className="truncate font-semibold tracking-tight">
+            {org ? (org.brandName ?? org.name) : 'Mentions'}
           </span>
-          <span className="font-semibold tracking-tight">Mentions</span>
         </div>
         <nav className="flex flex-col gap-1 p-3">
           {NAV.map((item) => (
@@ -54,6 +90,7 @@ function RootLayout() {
               key={item.to}
               to={item.to}
               className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              activeOptions={{ exact: item.to === '/' }}
               activeProps={{
                 className: 'bg-sidebar-accent text-sidebar-accent-foreground',
               }}
@@ -63,54 +100,12 @@ function RootLayout() {
             </Link>
           ))}
         </nav>
-        <SidebarFooter />
+        <UserMenu />
       </aside>
-      <main className="ml-56">
+      <main className="ml-64">
         <Outlet />
       </main>
       <Toaster theme="light" />
-    </div>
-  );
-}
-
-function SidebarFooter() {
-  const navigate = useNavigate();
-  const { data: session } = authClient.useSession();
-  const email = session?.user.email ?? '';
-
-  const signOut = async () => {
-    try {
-      await authClient.signOut();
-    } catch {
-      // Revocation is best-effort; the local marker is cleared regardless.
-    }
-    clearLoggedIn();
-    await navigate({ to: '/login' });
-  };
-
-  if (!email) {
-    return (
-      <div className="mt-auto border-t border-sidebar-border p-4">
-        <p className="text-xs text-muted-foreground">
-          Tracking dev platforms via the Mentions API.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border p-4">
-      <p className="truncate text-xs text-muted-foreground" title={email}>
-        {email}
-      </p>
-      <button
-        type="button"
-        className="text-muted-foreground transition-colors hover:text-sidebar-accent-foreground"
-        title="Sign out"
-        onClick={() => void signOut()}
-      >
-        <LogOut className="size-4" />
-      </button>
     </div>
   );
 }

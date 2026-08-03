@@ -4,7 +4,18 @@
  * The base URL defaults to same-origin: the Vite dev server proxies /v1 to the
  * API worker, and the deployed worker forwards /v1/* over a service binding.
  */
-import type { Keyword, Mention, SearchMentionsQuery, User } from '@mentions/core/schemas';
+import type {
+  CompanyProfile,
+  Keyword,
+  Mention,
+  MentionStats,
+  OnboardingAnalyzeResponse,
+  OnboardingCompleteInput,
+  OrgSummary,
+  SearchMentionsQuery,
+  Source,
+  User,
+} from '@mentions/core/schemas';
 import { clearLoggedIn, isLoggedIn } from './auth-client';
 
 const API_KEY_STORAGE = 'mentions.apiKey';
@@ -86,7 +97,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface MeResponse {
   user: User;
-  orgs: Array<{ id: string; name: string; role: 'owner' | 'member' }>;
+  orgs: OrgSummary[];
 }
 
 export type MentionFilters = Partial<Omit<SearchMentionsQuery, 'limit'>>;
@@ -129,11 +140,38 @@ export const api = {
     return request(`/keywords/${keywordId}`, { method: 'PATCH', body: JSON.stringify({ muted }) });
   },
 
+  analyzeWebsite(website: string): Promise<OnboardingAnalyzeResponse> {
+    return request('/onboarding/analyze', { method: 'POST', body: JSON.stringify({ website }) });
+  },
+
+  completeOnboarding(
+    body: OnboardingCompleteInput,
+  ): Promise<{ ok: true; keywordsCreated: number }> {
+    return request('/onboarding/complete', { method: 'POST', body: JSON.stringify(body) });
+  },
+
   getCompanyContext(): Promise<{ context: string }> {
     return request('/company');
   },
 
   setCompanyContext(context: string): Promise<{ context: string }> {
     return request('/company', { method: 'PUT', body: JSON.stringify({ context }) });
+  },
+
+  getStats(
+    params: { sinceDays?: number; source?: Source; keywordId?: string } = {},
+  ): Promise<MentionStats> {
+    const query = new URLSearchParams({ sinceDays: String(params.sinceDays ?? 14) });
+    if (params.source) query.set('source', params.source);
+    if (params.keywordId) query.set('keywordId', params.keywordId);
+    return request(`/stats?${query}`);
+  },
+
+  getCompanyProfile(): Promise<CompanyProfile> {
+    return request('/company/profile');
+  },
+
+  setCompanyProfile(profile: CompanyProfile): Promise<CompanyProfile> {
+    return request('/company/profile', { method: 'PUT', body: JSON.stringify(profile) });
   },
 };

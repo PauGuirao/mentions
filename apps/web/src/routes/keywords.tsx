@@ -102,7 +102,7 @@ function KeywordsPage() {
   const keywords = keywordsQuery.data?.keywords ?? [];
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="px-6 py-6">
       <PageHeader
         title="Keywords"
         description="Terms the pipeline polls every source for."
