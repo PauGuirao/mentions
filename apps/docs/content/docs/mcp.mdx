@@ -1,0 +1,40 @@
+---
+title: MCP server
+description: Give AI agents tools over your mention feed.
+icon: Bot
+---
+
+Mentions ships a Model Context Protocol server so agents (Claude Code, Cursor, or anything MCP-aware) can search, triage, and manage your mention tracking directly.
+
+## Connecting
+
+The server speaks stateless streamable HTTP at `POST /mcp` and authenticates with the same [API keys](/authentication) as the REST API:
+
+```json
+{
+  "mcpServers": {
+    "mentions": {
+      "type": "http",
+      "url": "https://your-mcp-host/mcp",
+      "headers": {
+        "Authorization": "Bearer mk_live_..."
+      }
+    }
+  }
+}
+```
+
+## Tools
+
+| Tool | Description |
+| --- | --- |
+| `search_mentions` | Search mentions with filters for keyword, source, state, minimum relevance, sentiment, intent, free text, and time range |
+| `get_mention` | Fetch one mention by id, including its classification |
+| `set_mention_state` | Triage a mention as `ignored` or `done` |
+| `add_keyword` | Start tracking a keyword (`brand`, `competitor`, or `topic`) |
+| `list_keywords` | List every tracked keyword, newest first |
+| `get_company_context` | Read the context the classifier uses to judge relevance |
+| `update_company_context` | Replace the classifier context |
+| `get_mention_stats` | Mention counts for the last N days, grouped by source and sentiment, optionally filtered to one source or keyword |
+
+Tool inputs are validated with the same zod schemas as the REST API, so behavior is identical across both surfaces.

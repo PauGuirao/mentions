@@ -1,0 +1,101 @@
+---
+title: Billing
+description: Usage-based pricing, the subscription lifecycle, and the usage endpoint.
+icon: CreditCard
+---
+
+Mentions bills by usage: what you track, and what the pipeline actually finds for you. There are no seats, no tiers, and one subscription per organization.
+
+## Pricing model
+
+| Line | Price | How it accrues |
+| --- | --- | --- |
+| Keywords | 5 EUR per keyword per month | Prorated per day. A keyword tracked for 12 days costs 12/30 of the monthly price |
+| Relevant mentions | 5 EUR per 1,000 past your allowance | Each keyword adds 500 relevant mentions to a pooled, org-wide monthly allowance |
+
+Billing cycles are calendar months (UTC). Two rules always work in your favor:
+
+- **Only relevant mentions are billable.** A mention counts only once the classifier scores it at or above your relevance threshold. Everything the pipeline fetches and filters out as noise is free, by design.
+- **Partial units are forgiven.** Overage is billed in whole 1,000-mention units; a leftover 999 mentions cost nothing, and the pool never bills fractionally.
+
+## Plan limits
+
+| Plan | Keyword limit |
+| --- | --- |
+| Free (no subscription) | 2 keywords |
+| Active subscription | 100 keywords |
+
+Creating or unmuting a keyword past your limit fails with `402 keyword_limit_reached`. The check is atomic with the write, so concurrent requests cannot race past the limit.
+
+## Subscribe
+
+Create a hosted checkout session and send the user to the returned URL:
+
+```bash
+curl -X POST "$MENTIONS_API_URL/v1/billing/checkout" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "successUrl": "https://app.example.com/settings?checkout=success" }'
+```
+
+```json
+{ "url": "https://polar.sh/checkout/..." }
+```
+
+`successUrl` must be `https` and its origin must be one the deployment trusts (the same allowlist as dashboard auth).
+
+## Manage the subscription
+
+The customer portal handles payment methods, invoices, and cancellation:
+
+```bash
+curl -X POST "$MENTIONS_API_URL/v1/billing/portal" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY"
+```
+
+```json
+{ "url": "https://polar.sh/portal/..." }
+```
+
+Returns `404 not_found` until the organization's first checkout has completed, because no billing account exists yet.
+
+## Check usage
+
+```bash
+curl -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  "$MENTIONS_API_URL/v1/billing/usage"
+```
+
+```json
+{
+  "cycle": "2026-08",
+  "status": "active",
+  "activeKeywords": 5,
+  "keywordMax": 6,
+  "relevantMentions": 3210,
+  "includedMentions": 3000,
+  "overageMentions": 210,
+  "billableUnits": 0,
+  "billedUnits": 0
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `cycle` | Current calendar-month cycle (UTC) |
+| `status` | `none`, `active`, `past_due`, or `canceled` |
+| `activeKeywords` | Unmuted keywords right now |
+| `keywordMax` | The cycle's keyword high-water mark; sizes the mention allowance |
+| `relevantMentions` | Relevant mentions found this cycle |
+| `includedMentions` | Pooled allowance: 500 x `keywordMax` |
+| `overageMentions` | Relevant mentions past the pool |
+| `billableUnits` | Whole 1,000-mention units of overage accrued so far |
+| `billedUnits` | Units already reported to the billing provider |
+
+<Callout title="Billing errors favor you">
+  Usage is metered so that an error can only ever under-count, never over-bill. If a
+  deployment has no billing credentials configured, billing endpoints return
+  `503 billing_not_configured` and everything else keeps working on the free plan.
+</Callout>
+
+See the [Billing reference](/api/billing/create-billing-checkout) for full request and response schemas.

@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+@import 'fumadocs-openapi/css/preset.css';
+
+/* Mentions theme: monochrome zinc, matching the dashboard app. */
+@theme {
+  --color-fd-background: hsl(0, 0%, 100%);
+  --color-fd-foreground: hsl(240, 6%, 10%);
+  --color-fd-muted: hsl(240, 5%, 96%);
+  --color-fd-muted-foreground: hsl(240, 4%, 40%);
+  --color-fd-popover: hsl(0, 0%, 100%);
+  --color-fd-popover-foreground: hsl(240, 6%, 10%);
+  --color-fd-card: hsl(240, 5%, 98%);
+  --color-fd-card-foreground: hsl(240, 6%, 10%);
+  --color-fd-border: hsl(240, 6%, 90%);
+  --color-fd-primary: hsl(240, 6%, 10%);
+  --color-fd-primary-foreground: hsl(0, 0%, 98%);
+  --color-fd-secondary: hsl(240, 5%, 96%);
+  --color-fd-secondary-foreground: hsl(240, 6%, 10%);
+  --color-fd-accent: hsl(240, 5%, 93%);
+  --color-fd-accent-foreground: hsl(240, 6%, 10%);
+  --color-fd-ring: hsl(240, 5%, 65%);
+}
+
+.dark {
+  --color-fd-background: hsl(240, 6%, 7%);
+  --color-fd-foreground: hsl(0, 0%, 95%);
+  --color-fd-muted: hsl(240, 5%, 15%);
+  --color-fd-muted-foreground: hsl(240, 5%, 65%);
+  --color-fd-popover: hsl(240, 6%, 10%);
+  --color-fd-popover-foreground: hsl(0, 0%, 95%);
+  --color-fd-card: hsl(240, 6%, 10%);
+  --color-fd-card-foreground: hsl(0, 0%, 95%);
+  --color-fd-border: hsla(240, 6%, 50%, 0.25);
+  --color-fd-primary: hsl(0, 0%, 95%);
+  --color-fd-primary-foreground: hsl(240, 6%, 10%);
+  --color-fd-secondary: hsl(240, 5%, 15%);
+  --color-fd-secondary-foreground: hsl(0, 0%, 95%);
+  --color-fd-accent: hsl(240, 5%, 18%);
+  --color-fd-accent-foreground: hsl(0, 0%, 95%);
+  --color-fd-ring: hsl(240, 5%, 45%);
+}

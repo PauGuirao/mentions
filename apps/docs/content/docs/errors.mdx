@@ -1,0 +1,32 @@
+---
+title: Errors
+description: The error envelope and every stable error code.
+icon: AlertTriangle
+---
+
+All errors use one envelope with a stable machine-readable code:
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "term: String must contain at least 2 character(s)"
+  }
+}
+```
+
+## Codes
+
+| Code | Status | When |
+| --- | --- | --- |
+| `unauthorized` | 401 | Missing or invalid API key |
+| `validation_error` | 400 | Request body or query failed schema validation |
+| `invalid_cursor` | 400 | Pagination cursor is malformed or expired |
+| `not_found` | 404 | Resource does not exist or belongs to another org |
+| `duplicate_keyword` | 409 | A keyword with the same normalized term already exists |
+| `keyword_limit_reached` | 402 | Creating or unmuting the keyword would exceed your plan's limit |
+| `invalid_signature` | 401 | Webhook signature verification failed (Polar webhook endpoint only) |
+| `billing_not_configured` | 503 | Billing endpoints called on a deployment without billing credentials |
+| `internal_error` | 500 | Unexpected server error |
+
+Handle errors by branching on `error.code`, not on the message; messages can change, codes will not.

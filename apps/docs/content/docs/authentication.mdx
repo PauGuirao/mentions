@@ -1,0 +1,42 @@
+---
+title: Authentication
+description: Bearer API keys, the header format, and key management endpoints.
+icon: KeyRound
+---
+
+Every request to the API (and to the [MCP server](/mcp)) is authenticated with a Bearer API key scoped to your organization:
+
+```bash
+curl -H "Authorization: Bearer mk_live_..." "$MENTIONS_API_URL/v1/keywords"
+```
+
+Only two endpoints are public: `GET /v1/health` and the OpenAPI spec at `GET /v1/openapi.json`.
+
+## Keys
+
+- Keys look like `mk_live_...` and are shown once at creation. Store them immediately; they cannot be retrieved later.
+- The API stores only a SHA-256 hash of the key. Lookups are cached for performance.
+- A key belongs to one organization; all keywords, mentions, and settings it touches are scoped to that org.
+
+## Managing keys
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/v1/api-keys` | Create a key (the plaintext key is only in this response) |
+| `GET` | `/v1/api-keys` | List keys (prefix and metadata only, never the key itself) |
+| `DELETE` | `/v1/api-keys/{apiKeyId}` | Revoke a key |
+
+See the [API Keys reference](/api/api-keys/create-api-key) for schemas.
+
+## Failed authentication
+
+Missing or invalid keys return `401` with the standard [error envelope](/errors):
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid API key"
+  }
+}
+```

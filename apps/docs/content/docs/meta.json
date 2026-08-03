@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "index",
+    "authentication",
+    "how-it-works",
+    "billing",
+    "errors",
+    "mcp",
+    "api"
+  ]
+}

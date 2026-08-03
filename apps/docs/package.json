@@ -1,0 +1,37 @@
+{
+  "name": "@mentions/docs",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3400",
+    "generate": "tsx scripts/export-openapi.ts && node scripts/generate-api-docs.mjs",
+    "build": "pnpm generate && next build",
+    "start": "next start",
+    "typecheck": "fumadocs-mdx && tsc --noEmit",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "pnpm generate && opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+  },
+  "dependencies": {
+    "fumadocs-core": "16.0.12",
+    "fumadocs-mdx": "14.0.0",
+    "fumadocs-openapi": "10.0.7",
+    "fumadocs-ui": "16.0.12",
+    "lucide-react": "^1.25.0",
+    "next": "^16.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "shiki": "^3.15.0"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/mdx": "^2.0.13",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.1",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.86.0"
+  }
+}

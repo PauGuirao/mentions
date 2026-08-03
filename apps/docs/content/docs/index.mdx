@@ -1,0 +1,108 @@
+---
+title: Quickstart
+description: Track keyword and brand mentions across dev platforms with a REST API.
+icon: BookOpen
+---
+
+Mentions watches developer platforms for the terms you care about (your product, your competitors, your space) and turns everything it finds into structured, classified mentions you can query, filter, and act on. Sources include Bluesky, Hacker News, Reddit, X, GitHub, Stack Overflow, DEV, YouTube, and news.
+
+Everything is API-first: a REST API for your code, and an [MCP server](/mcp) so AI agents can use your mention feed as a tool.
+
+## Base URL and authentication
+
+All endpoints live under `/v1` on your API host. Every request (except `/v1/health` and the OpenAPI spec) needs an API key in the `Authorization` header:
+
+```bash
+export MENTIONS_API_URL="https://your-api-host"
+export MENTIONS_API_KEY="mk_live_..."
+```
+
+See [Authentication](/authentication) for key management.
+
+## 1. Track a keyword
+
+```bash
+curl -X POST "$MENTIONS_API_URL/v1/keywords" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "term": "your product name", "kind": "brand" }'
+```
+
+```json
+{
+  "id": "kw_60d99e99b03549fb8eb81df038d10f86",
+  "term": "your product name",
+  "kind": "brand",
+  "muted": false,
+  "createdAt": 1784374600575
+}
+```
+
+`kind` is `brand` (default), `competitor`, or `topic`.
+
+## 2. Set your company context
+
+The classifier scores every mention for relevance using a short description of what your company does. This is the single biggest lever on result quality, so set it early:
+
+```bash
+curl -X PUT "$MENTIONS_API_URL/v1/company" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "context": "We build X for Y. Our products are... Our competitors are..." }'
+```
+
+## 3. Search your mentions
+
+New mentions flow in as each source is polled (see [How it works](/how-it-works) for per-source freshness). Query them with filters:
+
+```bash
+curl -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  "$MENTIONS_API_URL/v1/mentions?minRelevance=50&sentiment=positive&limit=25"
+```
+
+```json
+{
+  "mentions": [
+    {
+      "id": "mm_7f3a...",
+      "source": "hackernews",
+      "url": "https://news.ycombinator.com/item?id=...",
+      "author": "pg_fan",
+      "text": "We migrated our side project last month and the DX was surprisingly good...",
+      "publishedAt": 1784367400000,
+      "keywordId": "kw_60d9...",
+      "keywordTerm": "your product name",
+      "state": "classified",
+      "relevance": 86,
+      "sentiment": "positive",
+      "intents": ["praise"],
+      "aiNote": "Positive firsthand report of building on the product.",
+      "createdAt": 1784374600575
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+Results are newest first and keyset-paginated: pass `nextCursor` back as `cursor` until it comes back `null`.
+
+## 4. Triage
+
+Park a mention or close it out; triaged mentions are excluded from delivery:
+
+```bash
+curl -X POST "$MENTIONS_API_URL/v1/mentions/mm_7f3a.../state" \
+  -H "Authorization: Bearer $MENTIONS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "state": "done" }'
+```
+
+## Next steps
+
+<Cards>
+  <Card title="Authentication" description="API keys, header format, and key management." href="/authentication" />
+  <Card title="How it works" description="The pipeline, per-source freshness, and mention lifecycle." href="/how-it-works" />
+  <Card title="Billing" description="Usage-based pricing, plan limits, and the usage endpoint." href="/billing" />
+  <Card title="MCP server" description="Give AI agents tools over your mention feed." href="/mcp" />
+  <Card title="API Reference" description="Every endpoint, generated from the OpenAPI spec." href="/api/keywords/create-keyword" />
+</Cards>

@@ -1,0 +1,59 @@
+---
+title: How it works
+description: The ingestion pipeline, per-source freshness, and the mention lifecycle.
+icon: Workflow
+---
+
+## The pipeline
+
+Mentions runs a staged pipeline: sources are fetched on a schedule, normalized into raw items, matched against every organization's keywords, classified by an LLM, and delivered.
+
+Ingestion happens once, globally. When two organizations track the same term, the platform fetches and stores those posts once, then matches them to both orgs. Your mention feed is the org-scoped view over that shared ingest.
+
+## Per-source freshness
+
+Each source has its own polling cadence, chosen around the platform's API characteristics:
+
+| Source | Freshness | Notes |
+| --- | --- | --- |
+| Bluesky | Real time | Firehose subscription, not polling |
+| Hacker News | ~1 minute | |
+| GitHub | ~5 minutes | Per tracked term |
+| DEV | ~5 minutes | |
+| Reddit | ~10 minutes | Per tracked term |
+| News | ~30 minutes | GDELT updates roughly every 15 minutes |
+| X | ~1 hour | Kept coarse to respect the read budget |
+| YouTube | ~12 hours | Search quota bound |
+| Stack Overflow | ~24 hours | Slow-moving platform |
+
+A mention can only be as fresh as the platform's own API surface; the pipeline adds sub-minute overhead on top of the cadences above.
+
+## Mention lifecycle
+
+Every mention carries a `state`:
+
+| State | Set by | Meaning |
+| --- | --- | --- |
+| `matched` | Pipeline | Keyword matched, not yet classified |
+| `classified` | Pipeline | Scored for relevance, sentiment, and intents |
+| `filtered` | Pipeline | Scored below the relevance threshold; kept queryable, never delivered |
+| `delivered` | Pipeline | Sent to a configured destination |
+| `ignored` | You | Triaged as not interesting |
+| `done` | You | Triaged as handled |
+
+You can only set `ignored` and `done` (via [`POST /v1/mentions/{id}/state`](/api/mentions/set-mention-state)); the pipeline owns the rest.
+
+## Classification
+
+The classifier reads your [company context](/api/company/get-company-context) and scores each mention:
+
+| Field | Values |
+| --- | --- |
+| `relevance` | 0 to 100 |
+| `sentiment` | `positive`, `neutral`, `negative` |
+| `intents` | `buy_intent`, `question`, `complaint`, `praise`, `comparison` |
+| `aiNote` | One-line explanation, at most 200 characters |
+
+<Callout title="Company context is the biggest lever">
+  Relevance scoring is only as good as the context you provide. Describe what your company does, your products, and your competitors in `PUT /v1/company`.
+</Callout>
