@@ -1,0 +1,158 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SELF_SERVE_KEYWORDS } from '../config';
+
+const API_ORIGIN = 'https://api.mentio.dev';
+
+const features = [
+  ['01', 'Volume discounts', 'The public rate card, discounted as keyword volume grows.'],
+  ['02', 'Postpaid invoicing', 'Monthly invoices with net payment terms instead of card billing.'],
+  ['03', 'Custom polling cadences', 'Tighter refresh intervals on the sources that matter to you.'],
+  ['04', 'Custom sources', 'Platforms or communities we do not poll yet, added for your account.'],
+  ['05', 'Dedicated support channel', 'A shared Slack channel with the engineers, not a ticket queue.'],
+  ['06', 'Priority onboarding', 'We set up keywords, feeds and integrations with your team.'],
+];
+---
+
+<Layout
+  title="Enterprise - Mentio"
+  description="Mentio at scale: volume discounts, invoicing, custom sources and dedicated support for teams tracking hundreds of keywords."
+>
+  <section class="border-b border-zinc-200 px-6 py-20 text-center">
+    <p class="font-mono text-xs tracking-[0.25em] text-zinc-400 uppercase">Enterprise</p>
+    <h1 class="mx-auto mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+      Built for scale
+    </h1>
+    <p class="mx-auto mt-4 max-w-xl text-lg text-zinc-600">
+      Tracking more than {SELF_SERVE_KEYWORDS} keywords? Same product, same rate card, plus the
+      things a bigger team needs.
+    </p>
+  </section>
+
+  <section class="border-b border-zinc-200">
+    <div class="grid gap-px bg-zinc-200 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        features.map(([number, title, body]) => (
+          <div class="bg-white p-8">
+            <p class="font-mono text-xs text-zinc-400">[ {number} ]</p>
+            <p class="mt-3 font-semibold">{title}</p>
+            <p class="mt-2 text-sm text-zinc-600">{body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="border-b border-zinc-200 bg-zinc-50 px-6 py-16">
+    <div class="mx-auto max-w-lg">
+      <p class="font-mono text-xs tracking-[0.25em] text-zinc-400 uppercase">Talk to us</p>
+      <p class="mt-3 text-2xl font-semibold tracking-tight">Tell us what you are tracking</p>
+      <p class="mt-2 text-sm text-zinc-500">
+        We reply within 1 business day. A real reply, not an automated drip.
+      </p>
+
+      <form id="enterprise-form" class="mt-8 grid gap-5">
+        <label class="block">
+          <span class="text-sm text-zinc-600">Company name</span>
+          <input
+            name="company"
+            required
+            maxlength="120"
+            class="mt-1.5 w-full border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-900"
+          />
+        </label>
+        <label class="block">
+          <span class="text-sm text-zinc-600">Your name</span>
+          <input
+            name="name"
+            required
+            maxlength="120"
+            class="mt-1.5 w-full border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-900"
+          />
+        </label>
+        <label class="block">
+          <span class="text-sm text-zinc-600">Work email</span>
+          <input
+            name="email"
+            type="email"
+            required
+            maxlength="200"
+            class="mt-1.5 w-full border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-900"
+          />
+        </label>
+        <label class="block">
+          <span class="text-sm text-zinc-600">Keywords, current or expected</span>
+          <input
+            name="keywordsEstimate"
+            maxlength="120"
+            placeholder="e.g. 800 brand and competitor terms"
+            class="mt-1.5 w-full border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-900"
+          />
+        </label>
+        <label class="block">
+          <span class="text-sm text-zinc-600">Anything else we should know?</span>
+          <textarea
+            name="message"
+            rows="4"
+            maxlength="2000"
+            class="mt-1.5 w-full border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-900"
+          ></textarea>
+        </label>
+        <!-- Honeypot: humans never see it, bots fill it. -->
+        <input
+          name="website"
+          tabindex="-1"
+          autocomplete="off"
+          class="absolute -left-[9999px] h-0 w-0 opacity-0"
+          aria-hidden="true"
+        />
+        <button
+          type="submit"
+          id="enterprise-submit"
+          class="bg-zinc-900 px-6 py-3 font-medium text-white hover:bg-zinc-700 disabled:opacity-60"
+        >
+          Talk to us
+        </button>
+        <p id="enterprise-error" class="hidden text-sm text-red-700">
+          Something went wrong. Please try again or email us directly.
+        </p>
+      </form>
+
+      <div id="enterprise-thanks" class="mt-8 hidden border border-zinc-200 bg-white p-8">
+        <p class="text-xl font-semibold tracking-tight">Got it. Talk soon.</p>
+        <p class="mt-2 text-sm text-zinc-600">
+          Your request is in. We will get back to you within 1 business day.
+        </p>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script define:vars={{ API_ORIGIN }}>
+  const form = document.getElementById('enterprise-form');
+  const thanks = document.getElementById('enterprise-thanks');
+  const submit = document.getElementById('enterprise-submit');
+  const errorLine = document.getElementById('enterprise-error');
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    errorLine.classList.add('hidden');
+    submit.disabled = true;
+    submit.textContent = 'Sending...';
+    const data = Object.fromEntries(new FormData(form).entries());
+    try {
+      const res = await fetch(`${API_ORIGIN}/v1/enterprise/inquiries`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      form.classList.add('hidden');
+      thanks.classList.remove('hidden');
+    } catch {
+      errorLine.classList.remove('hidden');
+      submit.disabled = false;
+      submit.textContent = 'Talk to us';
+    }
+  });
+</script>

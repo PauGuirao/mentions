@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mentions-docs",
   "main": ".open-next/worker.js",
+  "routes": [{ "pattern": "docs.mentio.dev", "custom_domain": true }],
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {

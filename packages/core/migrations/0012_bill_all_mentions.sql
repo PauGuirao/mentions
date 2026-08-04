@@ -1,0 +1,15 @@
+-- Billing basis change: EVERY matched mention is billable, not just the ones
+-- the classifier scores at/above RELEVANCE_THRESHOLD. See CLAUDE.md
+-- invariant 7 (rewritten in the same change).
+--
+-- The counter therefore no longer means "relevant mentions"; it means "every
+-- mention that matched one of this org's keywords". Renaming it is the point:
+-- a column called relevant_mentions holding all mentions is exactly the trap
+-- that misleads the next reader of the settlement SQL.
+--
+-- Historical rows keep their values. They under-count against the new basis
+-- (they only ever counted relevant matches), which is the safe direction: an
+-- already-closed cycle can never be re-billed upward, and billed_units is
+-- monotone, so past cycles simply stay settled at what the customer was
+-- actually told. No backfill.
+ALTER TABLE usage_cycles RENAME COLUMN relevant_mentions TO matched_mentions;

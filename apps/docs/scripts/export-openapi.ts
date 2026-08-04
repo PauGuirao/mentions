@@ -16,6 +16,9 @@ const doc = app.getOpenAPIDocument({
     version: '0.0.1',
     description: 'Keyword and brand mention tracking across dev platforms.',
   },
+  // Without servers, the docs playground and code samples fall back to the
+  // docs site's own origin.
+  servers: [{ url: 'https://api.mentio.dev' }],
 });
 
 // The generator's groupBy: 'tag' only keeps operations whose tags are also

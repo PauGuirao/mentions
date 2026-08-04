@@ -11,19 +11,21 @@ Mentions bills by usage: what you track, and what the pipeline actually finds fo
 | Line | Price | How it accrues |
 | --- | --- | --- |
 | Keywords | 5 EUR per keyword per month | Prorated per day. A keyword tracked for 12 days costs 12/30 of the monthly price |
-| Relevant mentions | 5 EUR per 1,000 past your allowance | Each keyword adds 500 relevant mentions to a pooled, org-wide monthly allowance |
+| Mentions | 8 EUR per 1,000 past your allowance | The first 100 mentions each cycle are free, org-wide. Keywords bundle no mentions |
+
+A mention counts when the pipeline finds a post matching one of your keywords, whether the classifier scores it relevant or filters it as noise. Both numbers are shown in the dashboard and returned by the usage endpoint, so the billing counter never disagrees with what you can see.
 
 Billing cycles are calendar months (UTC). Two rules always work in your favor:
 
-- **Only relevant mentions are billable.** A mention counts only once the classifier scores it at or above your relevance threshold. Everything the pipeline fetches and filters out as noise is free, by design.
 - **Partial units are forgiven.** Overage is billed in whole 1,000-mention units; a leftover 999 mentions cost nothing, and the pool never bills fractionally.
+- **Failed classifications are never billed.** If the classifier errors out on a mention, it is not counted. An outage on our side costs you nothing.
 
 ## Plan limits
 
 | Plan | Keyword limit |
 | --- | --- |
 | Free (no subscription) | 2 keywords |
-| Active subscription | 100 keywords |
+| Active subscription | 500 keywords |
 
 Creating or unmuting a keyword past your limit fails with `402 keyword_limit_reached`. The check is atomic with the write, so concurrent requests cannot race past the limit.
 
@@ -72,11 +74,12 @@ curl -H "Authorization: Bearer $MENTIONS_API_KEY" \
   "status": "active",
   "activeKeywords": 5,
   "keywordMax": 6,
-  "relevantMentions": 3210,
-  "includedMentions": 3000,
-  "overageMentions": 210,
-  "billableUnits": 0,
-  "billedUnits": 0
+  "matchedMentions": 12840,
+  "includedMentions": 100,
+  "overageMentions": 12740,
+  "billableMentions": 12740,
+  "billedMentions": 12000,
+  "trial": null
 }
 ```
 
@@ -85,12 +88,13 @@ curl -H "Authorization: Bearer $MENTIONS_API_KEY" \
 | `cycle` | Current calendar-month cycle (UTC) |
 | `status` | `none`, `active`, `past_due`, or `canceled` |
 | `activeKeywords` | Unmuted keywords right now |
-| `keywordMax` | The cycle's keyword high-water mark; sizes the mention allowance |
-| `relevantMentions` | Relevant mentions found this cycle |
-| `includedMentions` | Pooled allowance: 500 x `keywordMax` |
-| `overageMentions` | Relevant mentions past the pool |
-| `billableUnits` | Whole 1,000-mention units of overage accrued so far |
-| `billedUnits` | Units already reported to the billing provider |
+| `keywordMax` | The cycle's keyword high-water mark; the keyword bill line derives from it |
+| `matchedMentions` | Every mention matched to a keyword this cycle, relevant or not. This is the billed count |
+| `includedMentions` | Flat free allowance per cycle (100, org-wide). Keywords bundle no mentions |
+| `overageMentions` | Mentions past the free allowance |
+| `billableMentions` | Overage accrued so far; billed in whole 1,000s |
+| `billedMentions` | Mentions already reported to the billing provider |
+| `trial` | Trial state for orgs without a subscription, else `null` |
 
 <Callout title="Billing errors favor you">
   Usage is metered so that an error can only ever under-count, never over-bill. If a

@@ -1,12 +1,3 @@
 {
-  "pages": [
-    "index",
-    "authentication",
-    "how-it-works",
-    "billing",
-    "slack",
-    "errors",
-    "mcp",
-    "api"
-  ]
+  "pages": ["(overview)", "mcp", "api"]
 }

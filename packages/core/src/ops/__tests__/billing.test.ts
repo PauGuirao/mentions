@@ -2,16 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { PolarClient, PolarEvent } from '../../polar';
 import {
   EVENT_KEYWORD_DAYS,
-  EVENT_MENTION_UNITS,
+  EVENT_MENTION_CHARGES,
   applySubscriptionUpdate,
   buildKeywordDayEvent,
-  buildMentionUnitEvents,
-  computeBillableUnits,
+  buildMentionChargeEvent,
+  computeBillableMentions,
   cycleKey,
   dayKey,
+  enforceTrialStops,
   getKeywordLimit,
   getUsageSummary,
   keywordLimitFor,
+  TRIAL_MENTION_LIMIT,
   recordBillableMention,
   runDailyBilling,
   toBillingStatus,
@@ -36,20 +38,16 @@ describe('dayKey', () => {
   });
 });
 
-describe('computeBillableUnits', () => {
-  it('pools the allowance across keywords and floors to whole units', () => {
-    // 3 keywords -> 1500 included; 3700 relevant -> 2200 overage -> 2 units.
-    const result = computeBillableUnits({ relevant_mentions: 3700, keyword_max: 3 });
-    expect(result).toEqual({ includedMentions: 1500, overageMentions: 2200, billableUnits: 2 });
+describe('computeBillableMentions', () => {
+  it('bills every mention past the flat free allowance', () => {
+    const result = computeBillableMentions({ matched_mentions: 3700 });
+    expect(result).toEqual({ includedMentions: 100, overageMentions: 3600, billableMentions: 3600 });
   });
 
-  it('bills nothing while usage stays inside the pool', () => {
-    expect(computeBillableUnits({ relevant_mentions: 499, keyword_max: 1 }).billableUnits).toBe(0);
-    expect(computeBillableUnits({ relevant_mentions: 1499, keyword_max: 1 }).billableUnits).toBe(0);
-  });
-
-  it('forgives the partial unit', () => {
-    expect(computeBillableUnits({ relevant_mentions: 2499, keyword_max: 1 }).billableUnits).toBe(1);
+  it('bills nothing inside the free allowance', () => {
+    expect(computeBillableMentions({ matched_mentions: 99 }).billableMentions).toBe(0);
+    expect(computeBillableMentions({ matched_mentions: 100 }).billableMentions).toBe(0);
+    expect(computeBillableMentions({ matched_mentions: 101 }).billableMentions).toBe(1);
   });
 });
 
@@ -58,7 +56,7 @@ describe('keyword limits', () => {
     expect(keywordLimitFor('none')).toBe(2);
     expect(keywordLimitFor('canceled')).toBe(2);
     expect(keywordLimitFor('past_due')).toBe(2);
-    expect(keywordLimitFor('active')).toBeNull();
+    expect(keywordLimitFor('active')).toBe(500);
   });
 
   it('reads the org status for the limit (missing row = free)', async () => {
@@ -67,7 +65,7 @@ describe('keyword limits', () => {
     const { db: paidDb } = createDbStub((query) =>
       query.sql.includes('FROM org_billing') ? { first: { status: 'active', polar_subscription_id: 's' } } : {},
     );
-    expect(await getKeywordLimit({ db: paidDb, orgId: 'org_1' })).toBeNull();
+    expect(await getKeywordLimit({ db: paidDb, orgId: 'org_1' })).toBe(500);
   });
 });
 
@@ -78,7 +76,7 @@ describe('recordBillableMention', () => {
 
     expect(queries[0]!.sql).toContain('INSERT OR IGNORE INTO billable_mentions');
     expect(queries[0]!.params).toEqual(['mm_1', 'org_1', '2026-08', AUG_2026]);
-    expect(queries[1]!.sql).toContain('relevant_mentions = relevant_mentions + 1');
+    expect(queries[1]!.sql).toContain('matched_mentions = matched_mentions + 1');
     // A fresh cycle must never sit at keyword_max 0 (pool 0 would make every
     // mention billable overage), so the upsert maintains the high-water too.
     expect(queries[1]!.sql).toContain('MAX(keyword_max');
@@ -128,9 +126,8 @@ describe('applySubscriptionUpdate', () => {
     expect(baselineIdx).toBeLessThan(upsertIdx);
 
     const baseline = queries[baselineIdx]!;
-    expect(baseline.sql).toContain('billed_units = MAX(billed_units');
-    // Ceil: a started pre-subscription unit is forgiven entirely.
-    expect(baseline.sql).toContain('+ 999) / 1000');
+    // Every free-period billable mention is marked projected at activation.
+    expect(baseline.sql).toContain('billed_units = MAX(billed_units, MAX(0, matched_mentions - 100))');
     expect(baseline.params).toEqual(['org_1', AUG_2026, '2026-08']);
   });
 
@@ -195,11 +192,12 @@ describe('getUsageSummary', () => {
       status: 'none',
       activeKeywords: 1,
       keywordMax: 0,
-      relevantMentions: 0,
-      includedMentions: 0,
+      matchedMentions: 0,
+      includedMentions: 100,
       overageMentions: 0,
-      billableUnits: 0,
-      billedUnits: 0,
+      billableMentions: 0,
+      billedMentions: 0,
+      trial: null,
     });
   });
 
@@ -207,15 +205,15 @@ describe('getUsageSummary', () => {
     const { db } = createDbStub((query) => {
       if (query.sql.includes('COUNT(*)')) return { first: { active: 3 } };
       if (query.sql.includes('usage_cycles')) {
-        return { first: { cycle: '2026-08', relevant_mentions: 3700, keyword_max: 3, billed_units: 1 } };
+        return { first: { cycle: '2026-08', matched_mentions: 3700, keyword_max: 3, billed_units: 1 } };
       }
       return { first: { status: 'active', polar_subscription_id: 'sub_1' } };
     });
     const summary = await getUsageSummary({ db, orgId: 'org_1', nowMs: AUG_2026 });
-    expect(summary.includedMentions).toBe(1500);
-    expect(summary.overageMentions).toBe(2200);
-    expect(summary.billableUnits).toBe(2);
-    expect(summary.billedUnits).toBe(1);
+    expect(summary.includedMentions).toBe(100);
+    expect(summary.overageMentions).toBe(3600);
+    expect(summary.billableMentions).toBe(3600);
+    expect(summary.billedMentions).toBe(1);
     expect(summary.status).toBe('active');
   });
 });
@@ -236,22 +234,25 @@ describe('buildKeywordDayEvent', () => {
   });
 });
 
-describe('buildMentionUnitEvents', () => {
-  it('numbers unbilled units deterministically', () => {
-    const row = { cycle: '2026-08', relevant_mentions: 3700, keyword_max: 3, billed_units: 0 };
-    const { events, targetBilledUnits } = buildMentionUnitEvents({ orgId: 'org_1', row });
-    expect(targetBilledUnits).toBe(2);
-    expect(events.map((e) => e.externalId)).toEqual(['munit:org_1:2026-08:1', 'munit:org_1:2026-08:2']);
-    expect(events[0]!.name).toBe(EVENT_MENTION_UNITS);
+describe('buildMentionChargeEvent', () => {
+  it('emits one delta event covering the unprojected mention range', () => {
+    const row = { cycle: '2026-08', matched_mentions: 3700, keyword_max: 3, billed_units: 600 };
+    const { event, targetBilledMentions } = buildMentionChargeEvent({ orgId: 'org_1', row });
+    expect(targetBilledMentions).toBe(3600);
+    expect(event).toEqual({
+      name: EVENT_MENTION_CHARGES,
+      externalCustomerId: 'org_1',
+      externalId: 'mchg:org_1:2026-08:601-3600',
+      metadata: { count: 3000, cycle: '2026-08' },
+    });
   });
 
-  it('never regresses when the pool outgrew already-billed units', () => {
-    // Monotone rule: keywords grew the pool after 2 units were billed;
-    // billable recomputes to 0 but nothing is emitted and nothing refunds.
-    const grown = { cycle: '2026-08', relevant_mentions: 3700, keyword_max: 5, billed_units: 2 };
-    const { events, targetBilledUnits } = buildMentionUnitEvents({ orgId: 'org_1', row: grown });
-    expect(events).toEqual([]);
-    expect(targetBilledUnits).toBe(2);
+  it('never regresses below already-projected mentions', () => {
+    // Monotone rule (e.g. after the first-activation forgiveness baseline).
+    const grown = { cycle: '2026-08', matched_mentions: 3700, keyword_max: 5, billed_units: 4000 };
+    const { event, targetBilledMentions } = buildMentionChargeEvent({ orgId: 'org_1', row: grown });
+    expect(event).toBeNull();
+    expect(targetBilledMentions).toBe(4000);
   });
 });
 
@@ -259,7 +260,7 @@ describe('runDailyBilling', () => {
   const currentCycleRow = {
     org_id: 'org_1',
     cycle: '2026-08',
-    relevant_mentions: 3700,
+    matched_mentions: 3700,
     keyword_max: 3,
     billed_units: 0,
   };
@@ -289,15 +290,13 @@ describe('runDailyBilling', () => {
     const { polar, ingested } = stubPolar();
 
     const result = await runDailyBilling({ db, polar, nowMs: AUG_2026 });
-    expect(result).toEqual({ keywordDayEvents: 1, mentionUnitEvents: 3, closedCycles: 1 });
+    expect(result).toEqual({ keywordDayEvents: 1, mentionChargeEvents: 2, closedCycles: 1 });
 
-    // Batch 1: the day's keyword-day events; then per-cycle mention units.
+    // Batch 1: the day's keyword-day events; then one delta per cycle.
     expect(ingested[0]!.map((e) => e.externalId)).toEqual(['kwday:org_1:2026-08-15']);
-    expect(ingested[1]!.map((e) => e.externalId)).toEqual([
-      'munit:org_1:2026-08:1',
-      'munit:org_1:2026-08:2',
-    ]);
-    expect(ingested[2]!.map((e) => e.externalId)).toEqual(['munit:org_1:2026-07:2']);
+    expect(ingested[1]!.map((e) => e.externalId)).toEqual(['mchg:org_1:2026-08:1-3600']);
+    expect(ingested[1]![0]!.metadata).toEqual({ count: 3600, cycle: '2026-08' });
+    expect(ingested[2]!.map((e) => e.externalId)).toEqual(['mchg:org_1:2026-07:2-3600']);
 
     // Heartbeat seeds/raises the current cycle's pool high-water first.
     expect(queries[0]!.sql).toContain('MAX(keyword_max, excluded.keyword_max)');
@@ -306,12 +305,12 @@ describe('runDailyBilling', () => {
     // The closed cycle is stamped settled; the current one is not.
     const updates = queries.filter((q) => q.sql.includes('billed_units = MAX(billed_units, ?1)'));
     expect(updates).toHaveLength(2);
-    expect(updates[0]!.params).toEqual([2, 0, AUG_2026, 'org_1', '2026-08']);
-    expect(updates[1]!.params).toEqual([2, 1, AUG_2026, 'org_1', '2026-07']);
+    expect(updates[0]!.params).toEqual([3600, 0, AUG_2026, 'org_1', '2026-08']);
+    expect(updates[1]!.params).toEqual([3600, 1, AUG_2026, 'org_1', '2026-07']);
   });
 
   it('skips the units write when a current cycle has nothing new', async () => {
-    const settled = { ...currentCycleRow, billed_units: 2 };
+    const settled = { ...currentCycleRow, billed_units: 3600 };
     const { db, queries } = createDbStub((query) => {
       if (query.sql.includes('FROM org_billing ob') && query.sql.includes('AS active')) {
         return { results: [] };
@@ -322,7 +321,7 @@ describe('runDailyBilling', () => {
     const { polar, ingested } = stubPolar();
 
     const result = await runDailyBilling({ db, polar, nowMs: AUG_2026 });
-    expect(result).toEqual({ keywordDayEvents: 0, mentionUnitEvents: 0, closedCycles: 0 });
+    expect(result).toEqual({ keywordDayEvents: 0, mentionChargeEvents: 0, closedCycles: 0 });
     expect(ingested).toHaveLength(0);
     expect(queries.some((q) => q.sql.includes('billed_units = MAX'))).toBe(false);
   });
@@ -343,5 +342,115 @@ describe('runDailyBilling', () => {
 
     await expect(runDailyBilling({ db, polar, nowMs: AUG_2026 })).rejects.toThrow('polar down');
     expect(queries.some((q) => q.sql.includes('billed_units = MAX'))).toBe(false);
+  });
+});
+
+describe('trial lifecycle', () => {
+  const NOW = 1_785_800_000_000;
+
+  async function seedTrialOrg(db: D1Database, orgId: string, trialEndsAt: number) {
+    await db
+      .prepare("INSERT INTO orgs (id, name, created_at, trial_ends_at) VALUES (?1, ?2, 0, ?3)")
+      .bind(orgId, `org ${orgId}`, trialEndsAt)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO keywords (id, org_id, term, normalized_term, kind, muted, created_at) VALUES (?1, ?2, 'zernio', 'zernio', 'brand', 0, 0)",
+      )
+      .bind(`kw_${orgId}`, orgId)
+      .run();
+  }
+
+  it('reports a running trial and expires on time', async () => {
+    const { createTestD1 } = await import('./d1-sqlite');
+    const db = createTestD1();
+    await seedTrialOrg(db, 'org_t1', NOW + 1000);
+
+    const running = await getUsageSummary({ db, orgId: 'org_t1', nowMs: NOW });
+    expect(running.trial).toEqual({
+      endsAt: NOW + 1000,
+      mentionsUsed: 0,
+      mentionsLimit: TRIAL_MENTION_LIMIT,
+      expired: false,
+    });
+
+    const over = await getUsageSummary({ db, orgId: 'org_t1', nowMs: NOW + 2000 });
+    expect(over.trial?.expired).toBe(true);
+    await expect(getKeywordLimit({ db, orgId: 'org_t1' })).resolves.toBe(0);
+  });
+
+  it('enforceTrialStops mutes expired trials only', async () => {
+    const { createTestD1 } = await import('./d1-sqlite');
+    const db = createTestD1();
+    await seedTrialOrg(db, 'org_dead', NOW - 1000);
+    await seedTrialOrg(db, 'org_alive', NOW + 999_999);
+    // Grandfathered org: no trial, never stopped.
+    await db
+      .prepare("INSERT INTO orgs (id, name, created_at) VALUES ('org_legacy', 'legacy', 0)")
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO keywords (id, org_id, term, normalized_term, kind, muted, created_at) VALUES ('kw_legacy', 'org_legacy', 'a b', 'a b', 'topic', 0, 0)",
+      )
+      .run();
+
+    const { stoppedKeywords } = await enforceTrialStops({ db, nowMs: NOW });
+    expect(stoppedKeywords).toBe(1);
+    const { results } = await db
+      .prepare('SELECT org_id, muted FROM keywords ORDER BY org_id')
+      .all<{ org_id: string; muted: number }>();
+    expect(results).toEqual([
+      { org_id: 'org_alive', muted: 0 },
+      { org_id: 'org_dead', muted: 1 },
+      { org_id: 'org_legacy', muted: 0 },
+    ]);
+    // Idempotent re-run.
+    await expect(enforceTrialStops({ db, nowMs: NOW })).resolves.toEqual({ stoppedKeywords: 0 });
+  });
+
+  it('mention allowance exhaustion expires the trial early', async () => {
+    const { createTestD1 } = await import('./d1-sqlite');
+    const db = createTestD1();
+    await seedTrialOrg(db, 'org_m', NOW + 999_999);
+    const inserts = [];
+    for (let i = 0; i < TRIAL_MENTION_LIMIT; i++) {
+      inserts.push(
+        db
+          .prepare(
+            "INSERT INTO billable_mentions (mention_match_id, org_id, cycle, created_at) VALUES (?1, 'org_m', '2026-08', 0)",
+          )
+          .bind(`mm_${i}`)
+          .run(),
+      );
+    }
+    await Promise.all(inserts);
+    const summary = await getUsageSummary({ db, orgId: 'org_m', nowMs: NOW });
+    expect(summary.trial?.mentionsUsed).toBe(TRIAL_MENTION_LIMIT);
+    expect(summary.trial?.expired).toBe(true);
+    await expect(enforceTrialStops({ db, nowMs: NOW })).resolves.toEqual({ stoppedKeywords: 1 });
+  });
+
+  it('activation unmutes a stopped org', async () => {
+    const { createTestD1 } = await import('./d1-sqlite');
+    const db = createTestD1();
+    await seedTrialOrg(db, 'org_up', NOW - 1000);
+    await enforceTrialStops({ db, nowMs: NOW });
+    await applySubscriptionUpdate({
+      db,
+      orgId: 'org_up',
+      polarCustomerId: 'cus_1',
+      polarSubscriptionId: 'sub_1',
+      polarStatus: 'active',
+      currentPeriodStart: NOW,
+      currentPeriodEnd: NOW + 1,
+      nowMs: NOW,
+    });
+    const row = await db
+      .prepare("SELECT muted FROM keywords WHERE org_id = 'org_up'")
+      .first<{ muted: number }>();
+    expect(row?.muted).toBe(0);
+    // Active subscription hides trial fields entirely.
+    const summary = await getUsageSummary({ db, orgId: 'org_up', nowMs: NOW });
+    expect(summary.trial).toBeNull();
   });
 });

@@ -13,3 +13,6 @@ apps/docs/openapi.json
 apps/docs/content/docs/api/
 *.tsbuildinfo
 .astro/
+
+# Local dev screenshots
+apps/docs/local-*.png

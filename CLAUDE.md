@@ -23,11 +23,12 @@ Stack Overflow, DEV in MVP). Octolens-class product. Everything runs on Cloudfla
 ## Billing (Polar)
 
 One bill, no add-ons: keywords are PRORATED PER DAY (EUR 5/30 per keyword-day,
-so a full month = EUR 5) + EUR 5 per whole 1,000 relevant mentions past the
-pooled allowance (500 x keyword max, pooled org-wide). Partial units are
-forgiven. Pool growth applies PROSPECTIVELY: an already-billed unit stays
-billed (standard quota semantics). Cycles are calendar-month UTC; the invoice
-is Polar summing the period's events.
+so a full month = EUR 5; keywords bundle NO mentions) + EUR 8 per whole 1,000
+mentions past the flat free allowance (first 100 per cycle, org-wide).
+EVERY matched mention counts, relevant or not. Partial units are forgiven,
+and billed_units is monotone (an
+already-billed unit never refunds). Cycles are calendar-month UTC; the
+invoice is Polar summing the period's events.
 
 6. **D1 meters; Polar receives append-only daily facts.** `usage_cycles` +
    `billable_mentions` are the billing source of truth. A once-per-UTC-day
@@ -39,11 +40,17 @@ is Polar summing the period's events.
    Deterministic `external_id`s make every re-run free. Never call Polar from
    the request/pipeline hot path; only the scheduler and the API worker
    (checkout/portal/webhook) hold Polar credentials.
-7. **Only relevant mentions are ever billable.** The billing record happens at
-   the classifier's matched→classified transition (exactly-once via the state
-   machine + `billable_mentions` PK; the repair path re-records idempotently).
-   Filtered noise is free BY DESIGN — that is the positioning against
-   competitors who count it.
+7. **Every matched mention is billable.** The billing record happens when the
+   classifier SCORES a match — both matched→classified and matched→filtered
+   (exactly-once via the state machine + `billable_mentions` PK; the repair
+   path re-records idempotently). `RELEVANCE_THRESHOLD` gates DELIVERY only,
+   never billing: a mention cost us the fetch and the classification whatever
+   it scored. The one exception is `classification_failed` (relevance NULL) —
+   an AI outage bills nothing, per invariant 8. Revenue therefore tracks the
+   real cost driver (raw volume), and improving the classifier no longer cuts
+   income. The UI must show BOTH counts (matched and relevant): the reason
+   competitors get resented for this is that their billing counter silently
+   contradicts the feed.
 8. **Billing errors favor the customer.** A crash window may under-count one
    mention; nothing may ever over-bill. Tick ordering: ingest events first,
    then advance `billed_units` (MAX-guarded, never backwards). The first-ever
@@ -57,13 +64,14 @@ is Polar summing the period's events.
 9. **Plan gating lives in core ops**, not routes, and the capacity check rides
    IN the write statement (`createKeyword`/unmute guard via `WHERE (SELECT
    COUNT...) < limit`) — a separate read-then-write races concurrent requests
-   past the limit. Free = 2 keywords; an active subscription is uncapped (pay
-   per use never gates a paying org). Routes only translate
+   past the limit. Free = 2 keywords; an active subscription gets the
+   self-serve ceiling (500, mirroring the pricing page; beyond it is an
+   enterprise conversation, not a bigger checkbox). Routes only translate
    `KeywordLimitError` → 402.
 
 Polar setup (dashboard, once per env): one subscription product with two
 metered prices — meter `keyword_days` (Sum over `count`, EUR 0.1667/unit =
-EUR 5/30 per keyword-day) and meter `mention_units` (Count, EUR 5/unit).
+EUR 5/30 per keyword-day) and meter `mention_units` (Count, EUR 8/unit).
 Enable via secrets, no deploy:
 `POLAR_ACCESS_TOKEN` + `POLAR_SERVER` (scheduler, api), `POLAR_WEBHOOK_SECRET`
 + `POLAR_PRODUCT_ID` (api). Webhook endpoint: `POST /v1/webhooks/polar`

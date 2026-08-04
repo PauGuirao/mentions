@@ -24,6 +24,8 @@ const PUBLIC_PATHS = new Set([
   '/v1/openapi.json',
   '/v1/webhooks/polar',
   '/v1/slack/callback',
+  // Landing contact form; unauthenticated by design (honeypot in the route).
+  '/v1/enterprise/inquiries',
 ]);
 /** Better Auth owns this namespace; its handler does its own auth. */
 const AUTH_PREFIX = '/v1/auth/';

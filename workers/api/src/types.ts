@@ -31,6 +31,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   /** Defaults to 'Mentio <notifications@mentio.dev>'. */
   EMAIL_FROM?: string;
+  /** Inbox notified about enterprise inquiries; unset = store-only. */
+  ENTERPRISE_INQUIRY_EMAIL?: string;
   /** Axiom wide-event drain switches on when both are set. */
   AXIOM_API_KEY?: string;
   AXIOM_DATASET?: string;

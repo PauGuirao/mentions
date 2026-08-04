@@ -202,6 +202,22 @@ export const slackNotificationsBodySchema = z.object({
 export type SlackNotificationsBody = z.infer<typeof slackNotificationsBodySchema>;
 
 // ---------------------------------------------------------------------------
+// Enterprise inquiries (public landing form)
+// ---------------------------------------------------------------------------
+
+export const enterpriseInquiryBodySchema = z.object({
+  company: z.string().min(1).max(120),
+  name: z.string().min(1).max(120),
+  email: z.string().email().max(200),
+  /** Free text: current or expected keyword volume. */
+  keywordsEstimate: z.string().max(120).optional(),
+  message: z.string().max(2000).optional(),
+  /** Honeypot; bots fill it, humans never see it. */
+  website: z.string().max(200).optional(),
+});
+export type EnterpriseInquiryBody = z.infer<typeof enterpriseInquiryBodySchema>;
+
+// ---------------------------------------------------------------------------
 // Bring-your-own source tokens (x bearer for now)
 // ---------------------------------------------------------------------------
 
@@ -374,14 +390,28 @@ export const usageSummarySchema = z.object({
   activeKeywords: z.number().int().min(0),
   /** High-water mark the keyword bill line uses. */
   keywordMax: z.number().int().min(0),
-  relevantMentions: z.number().int().min(0),
-  /** Pooled allowance: POOL_PER_KEYWORD x keywordMax. */
+  /** Every mention that matched a keyword this cycle, relevant or filtered:
+   *  all of them bill. Renamed from relevantMentions when billing moved to
+   *  the match (CLAUDE.md invariant 7). */
+  matchedMentions: z.number().int().min(0),
+  /** Flat free allowance per cycle (keywords bundle no mentions). */
   includedMentions: z.number().int().min(0),
-  /** Mentions past the pool (whole units of these get billed). */
+  /** Mentions past the free allowance; each one bills EUR 0.008. */
   overageMentions: z.number().int().min(0),
-  /** Whole 1k-units of overage accrued so far. */
-  billableUnits: z.number().int().min(0),
-  /** Units already projected to Polar. */
-  billedUnits: z.number().int().min(0),
+  /** Billable mentions accrued so far (monotone with billedMentions). */
+  billableMentions: z.number().int().min(0),
+  /** Mentions already projected to Polar. */
+  billedMentions: z.number().int().min(0),
+  /** Present for trial-era orgs without an active subscription; null for
+   *  paying and grandfathered orgs. */
+  trial: z
+    .object({
+      endsAt: z.number().int(),
+      mentionsUsed: z.number().int().min(0),
+      mentionsLimit: z.number().int().min(0),
+      /** Time or mention allowance ran out: tracking is stopped until upgrade. */
+      expired: z.boolean(),
+    })
+    .nullable(),
 });
 export type UsageSummary = z.infer<typeof usageSummarySchema>;

@@ -15,11 +15,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { TrialBanner, TrialWall } from '@/components/trial-gate';
 import { Toaster } from '@/components/ui/sonner';
 import { UserMenu } from '@/components/user-menu';
 import { hasCredentials } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
-import { useMe } from '@/lib/queries';
+import { useBillingUsage, useMe } from '@/lib/queries';
 
 const NAV = [
   { to: '/', label: 'Home', icon: House },
@@ -134,6 +135,8 @@ function RootLayout() {
   const meQuery = useMe();
   const me = meQuery.data;
   const org = me ? (me.orgs.find((o) => o.id === me.activeOrgId) ?? me.orgs[0]) : undefined;
+  const usageQuery = useBillingUsage();
+  const trial = usageQuery.data?.trial ?? null;
 
   // Session users whose workspace has not been onboarded are sent to the
   // onboarding flow before anything else. API-key-only users have no session
@@ -183,7 +186,14 @@ function RootLayout() {
         <UserMenu />
       </aside>
       <main className="ml-64">
-        <Outlet />
+        {trial?.expired ? (
+          <TrialWall />
+        ) : (
+          <>
+            {trial ? <TrialBanner trial={trial} /> : null}
+            <Outlet />
+          </>
+        )}
       </main>
       <Toaster theme="light" />
     </div>

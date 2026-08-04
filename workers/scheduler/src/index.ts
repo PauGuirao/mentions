@@ -10,7 +10,7 @@
  * The scheduler only decides WHAT is due; cursors and fetching live in the
  * ingest worker. Losing a tick therefore delays data, never loses it.
  */
-import { dayKey, runDailyBilling } from '@mentions/core/ops/billing';
+import { dayKey, enforceTrialStops, runDailyBilling } from '@mentions/core/ops/billing';
 import { initObservability, withJobEvent } from '@mentions/core/observability';
 import type { FetchJob } from '@mentions/core/pipeline';
 import { PolarClient, resolvePolarServer } from '@mentions/core/polar';
@@ -46,14 +46,14 @@ async function flushBilling(env: Env, now: number): Promise<void> {
   }
   const polar = new PolarClient({ accessToken: env.POLAR_ACCESS_TOKEN, server });
   try {
-    const { keywordDayEvents, mentionUnitEvents, closedCycles } = await runDailyBilling({
+    const { keywordDayEvents, mentionChargeEvents, closedCycles } = await runDailyBilling({
       db: env.DB,
       polar,
       nowMs: now,
     });
     await env.KV.put(BILLING_DAY_KEY, today);
     console.log(
-      `[scheduler] daily billing: ${keywordDayEvents} keyword-day + ${mentionUnitEvents} mention-unit event(s), ${closedCycles} cycle(s) closed`,
+      `[scheduler] daily billing: ${keywordDayEvents} keyword-day + ${mentionChargeEvents} mention-charge event(s), ${closedCycles} cycle(s) closed`,
     );
   } catch (error) {
     // The tick is re-runnable by design (external_id dedup); next tick retries.
@@ -76,7 +76,10 @@ const GLOBAL_CADENCES = [
 const PER_TERM_CADENCES = [
   { source: 'github', cadenceMinutes: 5 }, // 300s
   { source: 'stackoverflow', cadenceMinutes: 1440 }, // 86400s
-  { source: 'reddit', cadenceMinutes: 10 }, // 600s
+  // Reddit rides a paid scrape provider (per successful request), so the
+  // cadence is a cost knob: 30 min ~= 1,440 req/term/month, which keeps even
+  // a worst-case provider tier well under the per-keyword price.
+  { source: 'reddit', cadenceMinutes: 30 }, // 1800s
   // X bills per post RETURNED (empty polls are free, since_id never
   // refetches), so cadence is a latency knob, not a cost knob; hourly is
   // just a conservative default.
@@ -159,6 +162,16 @@ export default {
       console.log(`[scheduler] enqueued ${jobs.length} fetch job(s) (terms=${termRows.length})`);
     }
     log.set({ fetchJobs: jobs.length, terms: termRows.length });
+
+    // Full-stop finished trials before enqueueing is not required (the
+    // registry query already ran), but doing it every tick keeps the stop
+    // within a minute of expiry. Failures must not break polling.
+    try {
+      const { stoppedKeywords } = await enforceTrialStops({ db: env.DB, nowMs: now });
+      if (stoppedKeywords > 0) log.set({ trialStoppedKeywords: stoppedKeywords });
+    } catch (err) {
+      console.error('[scheduler] trial stop sweep failed', err instanceof Error ? err.message : err);
+    }
 
     await flushBilling(env, now);
       },

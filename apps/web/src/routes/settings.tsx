@@ -823,7 +823,7 @@ function BillingCard() {
 
   const usage = usageQuery.data;
   const paid = usage?.status === 'active' || usage?.status === 'past_due';
-  const keywordLimit = usage?.status === 'active' ? null : 2;
+  const keywordLimit = usage?.status === 'active' ? 500 : 2;
 
   return (
     <Card>
@@ -831,8 +831,8 @@ function BillingCard() {
         <div className="grid gap-1">
           <CardTitle>Plans and billing</CardTitle>
           <CardDescription>
-            EUR 5 per keyword per month with 500 relevant mentions per keyword included, then EUR
-            5 per extra 1,000. Irrelevant mentions are always free.
+            EUR 5 per keyword per month. First 100 mentions each month free, then EUR 8 per
+            1,000. Every mention we find for your keywords counts.
           </CardDescription>
         </div>
         {usage ? (
@@ -846,28 +846,23 @@ function BillingCard() {
               label="Active keywords"
               used={usage.activeKeywords}
               cap={keywordLimit}
-              detail={
-                keywordLimit === null
-                  ? `${usage.activeKeywords} active, no limit`
-                  : `${usage.activeKeywords} of ${keywordLimit}`
-              }
+              detail={`${usage.activeKeywords} of ${keywordLimit}`}
             />
             <UsageMeter
-              label={`Relevant mentions this cycle (${usage.cycle})`}
-              used={usage.relevantMentions}
+              label={`Mentions this cycle (${usage.cycle})`}
+              used={usage.matchedMentions}
               cap={usage.includedMentions}
               detail={
                 usage.overageMentions > 0
-                  ? `${usage.relevantMentions} used, ${usage.includedMentions} included, rest metered`
-                  : `${usage.relevantMentions} of ${usage.includedMentions} included, then EUR 5 per 1,000. No limit`
+                  ? `${usage.matchedMentions} used, ${usage.includedMentions} included, rest metered`
+                  : `${usage.matchedMentions} of ${usage.includedMentions} included, then EUR 8 per 1,000. No limit`
               }
               over={usage.overageMentions > 0}
             />
             {usage.overageMentions > 0 ? (
               <p className="text-xs text-muted-foreground">
-                {usage.overageMentions} mentions over the included pool this cycle;{' '}
-                {usage.billableUnits} whole unit{usage.billableUnits === 1 ? '' : 's'} of 1,000
-                billable. Partial units are free.
+                {usage.overageMentions} mentions past the free allowance this cycle, billed at
+                EUR 0.008 each ({(usage.overageMentions * 0.008).toFixed(2)} EUR so far).
               </p>
             ) : null}
           </>

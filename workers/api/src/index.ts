@@ -3,6 +3,7 @@
  * here (invariant); handlers validate, call an op, shape the envelope.
  */
 import { createRoute, z } from '@hono/zod-openapi';
+import { cors } from 'hono/cors';
 import { initObservability } from '@mentions/core/observability';
 import { evlog } from 'evlog/hono';
 import { auth } from './auth';
@@ -17,6 +18,7 @@ import { mentionsRouter } from './routes/mentions';
 import { meRouter } from './routes/me';
 import { onboardingRouter } from './routes/onboarding';
 import { registerSlackCallback, slackRouter } from './routes/slack';
+import { enterpriseRouter } from './routes/enterprise';
 import { sourceTokensRouter } from './routes/source-tokens';
 import { statsRouter } from './routes/stats';
 
@@ -32,6 +34,15 @@ app.use('*', evlog({ exclude: ['/v1/health', '/v1/openapi.json'] }));
 
 // Auth for everything under /v1 except health, the spec, and /v1/auth/*
 // (all skipped inside the middleware).
+// The landing form posts cross-origin (mentio.dev -> api.mentio.dev).
+app.use(
+  '/v1/enterprise/*',
+  cors({
+    origin: ['https://mentio.dev', 'https://www.mentio.dev', 'http://localhost:4321'],
+    allowMethods: ['POST', 'OPTIONS'],
+  }),
+);
+
 app.use('/v1/*', auth);
 
 // Better Auth owns /v1/auth/*: signup, login, OAuth callbacks, session.
@@ -62,6 +73,7 @@ v1.route('/', statsRouter);
 v1.route('/', billingRouter);
 v1.route('/', slackRouter);
 v1.route('/', sourceTokensRouter);
+v1.route('/', enterpriseRouter);
 registerPolarWebhook(v1);
 registerSlackCallback(v1);
 

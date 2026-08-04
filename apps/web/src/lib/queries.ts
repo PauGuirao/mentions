@@ -10,6 +10,16 @@ export function useKeywords() {
   });
 }
 
+/** Session users only; drives the trial banner and upgrade wall. */
+export function useBillingUsage() {
+  return useQuery({
+    queryKey: ['billingUsage'],
+    queryFn: api.getBillingUsage,
+    enabled: isLoggedIn(),
+    staleTime: 60_000,
+  });
+}
+
 /** Session users only: /v1/me 401s for API-key callers (no user identity). */
 export function useMe() {
   return useQuery({

@@ -17,6 +17,7 @@ import { resolveTermToken } from '@mentions/core/ops/source-tokens';
 import type { RawItem, Source } from '@mentions/core/schemas';
 import {
   createMonthlyReadMeter,
+  REDDIT_DEFAULT_MONTHLY_REQUEST_CAP,
   SOURCE_ADAPTERS,
   X_DEFAULT_MONTHLY_READ_CAP,
   type BudgetMeter,
@@ -35,6 +36,11 @@ interface Env {
    *  reddit adapter defers every poll. */
   REDDIT_CLIENT_ID?: string;
   REDDIT_CLIENT_SECRET?: string;
+  /** Scrape-provider key (Zyte). Reddit falls back to it when the official
+   *  REDDIT_* credentials are absent; without either, reddit defers. */
+  ZYTE_API_KEY?: string;
+  /** Optional var; provider requests/month the reddit adapter may spend. */
+  REDDIT_MONTHLY_REQUEST_CAP?: string;
   /** Optional secret; until set the x adapter defers every poll. */
   X_BEARER_TOKEN?: string;
   /** Optional var; posts/month the x adapter may read (cost gate). */
@@ -63,12 +69,30 @@ function adapterAuth(source: Source, env: Env): string | undefined {
   }
 }
 
-/** x is the only metered-spend source; everything else polls free APIs. */
+/** Scrape-provider credentials, for adapters with a `provider` transport. */
+function adapterProviderKey(source: Source, env: Env): string | undefined {
+  return source === 'reddit' ? env.ZYTE_API_KEY : undefined;
+}
+
+/** Metered-spend sources: x pays per post READ, reddit per provider REQUEST
+ *  (only on the provider transport; official credentials cost nothing).
+ *  Everything else polls free APIs. */
 function adapterBudget(source: Source, env: Env): BudgetMeter | undefined {
-  if (source !== 'x') return undefined;
-  const configured = Number.parseInt(env.X_MONTHLY_READ_CAP ?? '', 10);
-  const cap = Number.isFinite(configured) && configured > 0 ? configured : X_DEFAULT_MONTHLY_READ_CAP;
-  return createMonthlyReadMeter({ kv: env.KV, source, cap });
+  if (source === 'x') {
+    const configured = Number.parseInt(env.X_MONTHLY_READ_CAP ?? '', 10);
+    const cap =
+      Number.isFinite(configured) && configured > 0 ? configured : X_DEFAULT_MONTHLY_READ_CAP;
+    return createMonthlyReadMeter({ kv: env.KV, source, cap });
+  }
+  if (source === 'reddit') {
+    const configured = Number.parseInt(env.REDDIT_MONTHLY_REQUEST_CAP ?? '', 10);
+    const cap =
+      Number.isFinite(configured) && configured > 0
+        ? configured
+        : REDDIT_DEFAULT_MONTHLY_REQUEST_CAP;
+    return createMonthlyReadMeter({ kv: env.KV, source, cap });
+  }
+  return undefined;
 }
 
 /** Give up on a job after this many delivery attempts (message.attempts is
@@ -145,6 +169,7 @@ async function handleMessage(message: Message<unknown>, env: Env): Promise<void>
       cursor,
       term,
       auth,
+      providerKey: adapterProviderKey(job.source, env),
       budget: adapterBudget(job.source, env),
     });
 

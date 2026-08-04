@@ -25,6 +25,9 @@ export interface SourceAdapter {
     fetchImpl?: typeof fetch;
     /** Optional API token/key for rate headroom (e.g. GITHUB_TOKEN). */
     auth?: string;
+    /** Scrape-provider key for adapters whose `provider` transport needs one
+     *  (reddit via Zyte). Adapters prefer `auth` when both are present. */
+    providerKey?: string;
     /** Spend tracker for adapters that hit metered paid APIs (x). Provided by
      *  the ingest worker; the guard logic itself lives in the adapter. */
     budget?: BudgetMeter;

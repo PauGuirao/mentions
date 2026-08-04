@@ -29,6 +29,7 @@ export {
   youtubeAdapter,
 };
 export { createMonthlyReadMeter, X_DEFAULT_MONTHLY_READ_CAP } from './x';
+export { REDDIT_DEFAULT_MONTHLY_REQUEST_CAP } from './reddit';
 
 export const SOURCE_ADAPTERS: Partial<Record<Source, SourceAdapter>> = {
   hackernews: hackernewsAdapter,

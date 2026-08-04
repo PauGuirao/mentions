@@ -28,10 +28,14 @@ const WEBHOOK_EVENTS = [
 ];
 /** Cents. keyword_days: EUR 5 per keyword-month prorated daily (5/30). */
 const KEYWORD_DAY_UNIT_AMOUNT = '16.6667';
-const MENTION_UNIT_AMOUNT = 500;
+/** Cents. Every billable mention is EUR 0.008 (EUR 8 per 1,000). */
+const MENTION_UNIT_AMOUNT = '0.8';
 
 const args = process.argv.slice(2);
 const server: keyof typeof SERVERS = args.includes('--production') ? 'production' : 'sandbox';
+/** Opt-in: archive the live mention price and create one at the current rate.
+ *  Affects every existing subscriber's next invoice, so never implicit. */
+const reprice = args.includes('--reprice');
 const webhookArg = args.indexOf('--webhook-url');
 const webhookUrl =
   webhookArg !== -1 && args[webhookArg + 1]
@@ -87,7 +91,7 @@ interface Product {
   id: string;
   name: string;
   is_archived: boolean;
-  prices: Array<{ amount_type: string; unit_amount?: number | string }>;
+  prices: Array<{ id: string; amount_type: string; unit_amount?: number | string; meter_id?: string; is_archived?: boolean }>;
 }
 interface WebhookEndpoint {
   id: string;
@@ -122,7 +126,10 @@ async function main(): Promise<void> {
     func: 'sum',
     property: 'count',
   });
-  const mentionMeter = await ensureMeter('Mention units', 'mention_units', { func: 'count' });
+  const mentionMeter = await ensureMeter('Mentions billed', 'mention_charges', {
+    func: 'sum',
+    property: 'count',
+  });
 
   const products = await polar<Page<Product>>(
     'GET',
@@ -131,11 +138,52 @@ async function main(): Promise<void> {
   let product = products.items.find((p) => p.name === PRODUCT_NAME);
   if (product) {
     console.log(`product "${PRODUCT_NAME}" already exists: ${product.id}`);
+    // Ensure the mention price points at the CURRENT meter (model changes
+    // swap meters); omitted existing prices get archived by the PATCH.
+    const livePrice = product.prices.find(
+      (price) =>
+        price.amount_type === 'metered_unit' &&
+        price.meter_id === mentionMeter.id &&
+        !price.is_archived,
+    );
+    // Polar prices are immutable, so a rate change means archiving the old
+    // price and creating a new one — which is a LIVE BILLING CHANGE for every
+    // existing subscriber. Detect the drift always, apply it only when asked.
+    const priceDrifted =
+      livePrice !== undefined &&
+      Number(livePrice.unit_amount) !== Number(MENTION_UNIT_AMOUNT);
+    if (priceDrifted) {
+      console.log(
+        `mention price is ${livePrice.unit_amount} cents/unit; this script wants ${MENTION_UNIT_AMOUNT}.`,
+      );
+      if (!reprice) {
+        console.log('  -> re-run with --reprice to archive it and create the new price.');
+      }
+    }
+    if (!livePrice || (priceDrifted && reprice)) {
+      const kept = product.prices
+        .filter((price) => price.meter_id === keywordMeter.id && !price.is_archived)
+        .map((price) => ({ id: price.id }));
+      product = await polar<Product>('PATCH', `/v1/products/${product.id}`, {
+        prices: [
+          ...kept,
+          {
+            amount_type: 'metered_unit',
+            price_currency: 'eur',
+            meter_id: mentionMeter.id,
+            unit_amount: MENTION_UNIT_AMOUNT,
+          },
+        ],
+      });
+      console.log('updated product prices:', JSON.stringify(product.prices.map((price) => ({
+        meter: price.meter_id, unit_amount: price.unit_amount, archived: price.is_archived,
+      })), null, 2));
+    }
   } else {
     product = await polar<Product>('POST', '/v1/products', {
       name: PRODUCT_NAME,
       description:
-        'Usage-based plan: EUR 5 per keyword-month (prorated daily) and EUR 5 per 1,000 relevant mentions past the pooled allowance.',
+        'Usage-based plan: EUR 5 per keyword-month (prorated daily) and EUR 8 per 1,000 relevant mentions past the pooled allowance.',
       recurring_interval: 'month',
       prices: [
         {

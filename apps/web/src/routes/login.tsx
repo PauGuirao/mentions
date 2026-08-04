@@ -57,7 +57,10 @@ function GoogleIcon() {
 function LoginPage() {
   const navigate = useNavigate();
   const { redirect: redirectTo } = Route.useSearch();
-  const [mode, setMode] = useState<Mode>('login');
+  // /login?mode=signup (the pricing page's "Start free") opens signup directly.
+  const [mode, setMode] = useState<Mode>(() =>
+    new URLSearchParams(window.location.search).get('mode') === 'signup' ? 'signup' : 'login',
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -119,7 +122,7 @@ function LoginPage() {
           <CardDescription>
             {mode === 'login'
               ? 'Track keyword and brand mentions across dev platforms.'
-              : 'A workspace is created with your account.'}
+              : 'Start your 3 day free trial. No card needed.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">

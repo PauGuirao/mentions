@@ -22,6 +22,8 @@ export const orgs = sqliteTable('orgs', {
   brandName: text('brand_name'),
   logoUrl: text('logo_url'),
   onboardedAt: integer('onboarded_at'),
+  // 0010 self-serve trial (NULL = grandfathered, no trial mechanics)
+  trialEndsAt: integer('trial_ends_at'),
   // 0005 company profile
   description: text('description').notNull().default(''),
   useCases: text('use_cases').notNull().default('[]'),
@@ -218,7 +220,7 @@ export const usageCycles = sqliteTable(
       .notNull()
       .references(() => orgs.id),
     cycle: text('cycle').notNull(),
-    relevantMentions: integer('relevant_mentions').notNull().default(0),
+    matchedMentions: integer('matched_mentions').notNull().default(0),
     keywordMax: integer('keyword_max').notNull().default(0),
     billedUnits: integer('billed_units').notNull().default(0),
     settledAt: integer('settled_at'),
@@ -236,6 +238,21 @@ export const billableMentions = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('idx_billable_org_cycle').on(t.orgId, t.cycle)],
+);
+
+// 0011: enterprise contact requests from the landing form
+export const enterpriseInquiries = sqliteTable(
+  'enterprise_inquiries',
+  {
+    id: text('id').primaryKey(),
+    company: text('company').notNull(),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    keywordsEstimate: text('keywords_estimate'),
+    message: text('message'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('idx_enterprise_inquiries_created').on(table.createdAt)],
 );
 
 // 0009: bring-your-own source credentials (x bearer tokens for now)

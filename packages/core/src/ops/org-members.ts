@@ -8,6 +8,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { orgMembers, orgs } from '../db/schema';
 import { newId } from '../ids';
+import { TRIAL_MS } from './billing';
 import type { OrgSummary, User } from '../schemas';
 
 /** Auto-provision a workspace for a fresh signup (Better Auth user.create
@@ -29,7 +30,14 @@ export async function bootstrapOrgForUser(args: {
   const now = Date.now();
   await orm.batch([
     // Slug mirrors the 0008 backfill shape; the org plugin requires one.
-    orm.insert(orgs).values({ id: orgId, name: orgName, slug: `org-${orgId.slice(4, 20)}`, createdAt: now }),
+    // Every fresh workspace starts its self-serve trial clock immediately.
+    orm.insert(orgs).values({
+      id: orgId,
+      name: orgName,
+      slug: `org-${orgId.slice(4, 20)}`,
+      createdAt: now,
+      trialEndsAt: now + TRIAL_MS,
+    }),
     orm.insert(orgMembers).values({ id: newId('mem'), orgId, userId, role: 'owner', createdAt: now }),
   ]);
   return { orgId, created: true };

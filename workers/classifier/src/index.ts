@@ -1,6 +1,9 @@
 /**
  * mentions-classifier: consumes QUEUES.classify, scores each tenant-scoped
  * match with Workers AI, and forwards matches that clear RELEVANCE_THRESHOLD
+ *
+ * BILLING: every scored match is recorded as billable regardless of its
+ * relevance (CLAUDE.md invariant 7). The threshold gates DELIVERY only.
  * to QUEUES.deliver.
  *
  * State machine (mention_matches.state):
@@ -97,14 +100,20 @@ async function handleJob(env: Env, job: { mentionMatchId: string; orgId: string 
   }
 
   if (row.state !== 'matched') {
-    // Idempotency on redelivery: someone already moved this match on. One
-    // repair case: a previous run classified above threshold but crashed
-    // before the billing record / deliver enqueue. Both re-runs are safe:
-    // billable_mentions dedupes on match id, the deliverer dedupes on
+    // Idempotency on redelivery: someone already moved this match on. Repair
+    // case: a previous run scored the match but crashed before the billing
+    // record / deliver enqueue. Both re-runs are safe: billable_mentions
+    // dedupes on match id, the deliverer dedupes on
     // deliveries(destination_id, mention_match_id).
-    if (row.state === 'classified' && row.relevance !== null && row.relevance >= RELEVANCE_THRESHOLD) {
+    //
+    // EVERY scored match bills, relevant or not (CLAUDE.md invariant 7), so
+    // 'filtered' repairs too — it just never gets delivered. relevance IS
+    // NULL means the classifier failed, which stays unbilled (see below).
+    if (row.relevance !== null && (row.state === 'classified' || row.state === 'filtered')) {
       await recordBillableMention({ db: env.DB, orgId, mentionMatchId });
-      await env.DELIVER.send({ mentionMatchId, orgId });
+      if (row.state === 'classified' && row.relevance >= RELEVANCE_THRESHOLD) {
+        await env.DELIVER.send({ mentionMatchId, orgId });
+      }
     }
     return;
   }
@@ -149,9 +158,18 @@ async function handleJob(env: Env, job: { mentionMatchId: string; orgId: string 
   // changes === 0 means a concurrent consumer won the state transition; it
   // owns the billing record and deliver enqueue too, so we must not double
   // up here.
-  if (nextState === 'classified' && update.meta.changes > 0) {
+  //
+  // Billing is on the MATCH, not on the verdict: a mention that matched a
+  // keyword cost us the fetch and the classification whatever it scored, so
+  // 'filtered' bills exactly like 'classified' and only delivery is gated on
+  // the threshold. The classification_failed path above returns early and
+  // never reaches here, so an AI outage bills nothing (invariant 8: a crash
+  // window may under-count, nothing may ever over-bill).
+  if (update.meta.changes > 0) {
     await recordBillableMention({ db: env.DB, orgId, mentionMatchId });
-    await env.DELIVER.send({ mentionMatchId, orgId });
+    if (nextState === 'classified') {
+      await env.DELIVER.send({ mentionMatchId, orgId });
+    }
   }
 }
 
