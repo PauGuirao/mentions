@@ -10,7 +10,11 @@ describe('devtoAdapter', () => {
     const { fetchImpl, requests } = stubFetch({ responses: [fixture] });
     await devtoAdapter.fetchSince({ cursor: CURSOR, fetchImpl });
     expect(requests).toHaveLength(1);
-    expect(requests[0]?.url).toBe('https://dev.to/api/articles/latest?page=1&per_page=100');
+    // per_page is PINNED at 30 on purpose: dev.to's CDN serves a stale,
+    // hours-old page 1 for the per_page=100 variant, which deadlocks the
+    // cursor (see the constant's comment in devto.ts). If this assertion
+    // fails because someone raised PER_PAGE back to 100, that is the bug.
+    expect(requests[0]?.url).toBe('https://dev.to/api/articles/latest?page=1&per_page=30');
   });
 
   it('filters to the cursor, handles both tag_list shapes, returns oldest-first', async () => {

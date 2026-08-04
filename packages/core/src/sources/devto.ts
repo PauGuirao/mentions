@@ -21,8 +21,26 @@ import type { SourceAdapter } from './types';
 import { clampText, finalizeItems, ADAPTER_HEADERS } from './util';
 
 const BOOTSTRAP_LOOKBACK_MS = 3_600_000;
-const PER_PAGE = 100;
-const MAX_PAGES = 5;
+/**
+ * DO NOT RAISE TO 100. dev.to fronts this endpoint with a CDN, and the
+ * `per_page=100` variant of page 1 is served from a long-lived cache entry —
+ * measured 2026-08-04 at `age: 46240` (12.8 hours) with `x-cache: HIT, HIT`,
+ * while `per_page=2` and `per_page=30` both returned `age: 0`. A cache-buster
+ * query param does not help; `_` is not part of their cache key.
+ *
+ * That stale page 1 DEADLOCKS this adapter. Its newest article freezes at
+ * whatever the cursor was when the entry was cached, so every poll sees
+ * nothing newer, hits `sawOlder`, breaks before reaching pages 2+ (which are
+ * fresh, and can even be NEWER than page 1), and never advances the cursor.
+ * Observed in production: devto stopped ingesting for ~20h while still being
+ * scheduled and returning HTTP 200.
+ */
+const PER_PAGE = 30;
+/** dev.to publishes ~330 articles/hour (measured: 150 articles spanned 27
+ *  minutes). At PER_PAGE=30 an hourly cadence needs ~11 pages, so this is
+ *  that plus headroom. The loop still exits early at the cursor, so a quiet
+ *  hour costs one request, not fifteen. */
+const MAX_PAGES = 15;
 
 const devtoArticleSchema = z.object({
   id: z.number().int(),
