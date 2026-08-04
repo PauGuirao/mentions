@@ -9,7 +9,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { deliveries, destinations, feedDestinations, feeds, slackInstalls } from '../db/schema';
 import { newId } from '../ids';
-import { feedFilterSchema, type SlackStatus } from '../schemas';
+import { feedFilterSchema, type SlackStatus, type Source } from '../schemas';
 import type { SlackInstallGrant } from '../slack';
 
 export class SlackNotConnectedError extends Error {
@@ -89,6 +89,7 @@ export async function getSlackStatus(args: {
   let notifications: SlackStatus['notifications'] = null;
   if (install.feedId && install.channelId && install.channelName) {
     let minRelevance: number | null = null;
+    let sources: Source[] | null = null;
     const feed = await getDb(args.db)
       .select({ filter: feeds.filter })
       .from(feeds)
@@ -97,7 +98,10 @@ export async function getSlackStatus(args: {
     if (feed) {
       try {
         const filter = feedFilterSchema.safeParse(JSON.parse(feed.filter));
-        if (filter.success) minRelevance = filter.data.minRelevance ?? null;
+        if (filter.success) {
+          minRelevance = filter.data.minRelevance ?? null;
+          sources = filter.data.sources?.length ? filter.data.sources : null;
+        }
       } catch {
         // Unparseable filter: surface the channel anyway; delivery skips it.
       }
@@ -106,6 +110,7 @@ export async function getSlackStatus(args: {
       channelId: install.channelId,
       channelName: install.channelName,
       minRelevance,
+      sources,
     };
   }
 
@@ -119,15 +124,20 @@ export async function setSlackNotifications(args: {
   channelId: string;
   channelName: string;
   minRelevance?: number | undefined;
+  /** Platforms to notify for; omitted or empty = every source. */
+  sources?: readonly Source[] | undefined;
   now?: number;
 }): Promise<void> {
-  const { db, orgId, channelId, channelName, minRelevance } = args;
+  const { db, orgId, channelId, channelName, minRelevance, sources } = args;
   const orm = getDb(db);
   const install = await getSlackInstall({ db, orgId });
   if (!install) throw new SlackNotConnectedError();
 
   const now = args.now ?? Date.now();
-  const filter = JSON.stringify(minRelevance === undefined ? {} : { minRelevance });
+  const filter = JSON.stringify({
+    ...(minRelevance === undefined ? {} : { minRelevance }),
+    ...(sources && sources.length > 0 ? { sources } : {}),
+  });
   const config = JSON.stringify({ botToken: install.botToken, channel: channelId });
 
   if (install.feedId && install.destinationId) {

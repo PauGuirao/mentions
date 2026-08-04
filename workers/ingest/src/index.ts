@@ -12,6 +12,8 @@ import {
   rawItemsMessageSchema,
   type RawItemsMessage,
 } from '@mentions/core/pipeline';
+import { initObservability, withJobEvent } from '@mentions/core/observability';
+import { resolveTermToken } from '@mentions/core/ops/source-tokens';
 import type { RawItem, Source } from '@mentions/core/schemas';
 import {
   createMonthlyReadMeter,
@@ -21,6 +23,9 @@ import {
 } from '@mentions/core/sources/index';
 
 interface Env {
+  /** Axiom wide-event drain switches on when both are set. */
+  AXIOM_API_KEY?: string;
+  AXIOM_DATASET?: string;
   DB: D1Database;
   KV: KVNamespace;
   RAW_ITEMS: Queue<RawItemsMessage>;
@@ -129,10 +134,17 @@ async function handleMessage(message: Message<unknown>, env: Env): Promise<void>
       .first<{ cursor: string }>();
     const cursor = row?.cursor ?? null;
 
+    // Platform secret first; for x, fall back to a bring-your-own token from
+    // an org tracking this term (core/ops/source-tokens resolution rules).
+    let auth = adapterAuth(job.source, env);
+    if (auth === undefined && job.source === 'x' && term !== undefined) {
+      auth = (await resolveTermToken({ db: env.DB, source: 'x', term })) ?? undefined;
+    }
+
     const { items, nextCursor } = await adapter.fetchSince({
       cursor,
       term,
-      auth: adapterAuth(job.source, env),
+      auth,
       budget: adapterBudget(job.source, env),
     });
 
@@ -184,9 +196,17 @@ async function handleMessage(message: Message<unknown>, env: Env): Promise<void>
 }
 
 export default {
-  async queue(batch, env) {
-    for (const message of batch.messages) {
-      await handleMessage(message, env);
-    }
+  async queue(batch, env, ctx) {
+    initObservability('ingest', env);
+    await withJobEvent({
+      ctx,
+      event: 'queue_batch',
+      fields: { queue: batch.queue, messages: batch.messages.length },
+      fn: async () => {
+        for (const message of batch.messages) {
+          await handleMessage(message, env);
+        }
+      },
+    });
   },
 } satisfies ExportedHandler<Env>;

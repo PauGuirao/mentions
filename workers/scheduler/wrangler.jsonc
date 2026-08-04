@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": { "AXIOM_DATASET": "mentio" },
   "observability": { "enabled": true },
   // Every-minute tick; the worker decides per source/term what is actually due.
   "triggers": { "crons": ["* * * * *"] },

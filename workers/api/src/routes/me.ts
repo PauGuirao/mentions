@@ -30,5 +30,5 @@ meRouter.openapi(meRoute, async (c) => {
   if (!me) {
     return c.json(errorBody('unauthorized', 'User no longer exists'), 401);
   }
-  return c.json(me, 200);
+  return c.json({ ...me, activeOrgId: c.get('orgId') }, 200);
 });

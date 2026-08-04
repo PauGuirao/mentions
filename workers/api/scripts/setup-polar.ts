@@ -36,7 +36,7 @@ const webhookArg = args.indexOf('--webhook-url');
 const webhookUrl =
   webhookArg !== -1 && args[webhookArg + 1]
     ? args[webhookArg + 1]
-    : 'https://mentions-api.guiraocastells.workers.dev/v1/webhooks/polar';
+    : 'https://api.mentio.dev/v1/webhooks/polar';
 
 function tokenFromDevVars(): string | null {
   try {

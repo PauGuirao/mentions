@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": { "AXIOM_DATASET": "mentio" },
   "observability": { "enabled": true },
   "d1_databases": [
     { "binding": "DB", "database_name": "mentions", "database_id": "d7544f01-aeb7-4d49-903e-821cf0244f64" }

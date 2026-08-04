@@ -9,6 +9,7 @@ import type {
   Keyword,
   Mention,
   MentionStats,
+  UsageSummary,
   OnboardingAnalyzeResponse,
   OnboardingCompleteInput,
   OrgSummary,
@@ -101,6 +102,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface MeResponse {
   user: User;
   orgs: OrgSummary[];
+  /** The workspace this session currently acts on (org switcher target). */
+  activeOrgId: string;
 }
 
 export type MentionFilters = Partial<Omit<SearchMentionsQuery, 'limit'>>;
@@ -200,5 +203,29 @@ export const api = {
 
   setCompanyProfile(profile: CompanyProfile): Promise<CompanyProfile> {
     return request('/company/profile', { method: 'PUT', body: JSON.stringify(profile) });
+  },
+
+  getBillingUsage(): Promise<UsageSummary> {
+    return request('/billing/usage');
+  },
+
+  createBillingCheckout(successUrl: string): Promise<{ url: string }> {
+    return request('/billing/checkout', { method: 'POST', body: JSON.stringify({ successUrl }) });
+  },
+
+  createBillingPortal(): Promise<{ url: string }> {
+    return request('/billing/portal', { method: 'POST' });
+  },
+
+  getXTokenStatus(): Promise<{ configured: boolean }> {
+    return request('/sources/x/token');
+  },
+
+  setXToken(token: string): Promise<{ configured: boolean }> {
+    return request('/sources/x/token', { method: 'PUT', body: JSON.stringify({ token }) });
+  },
+
+  deleteXToken(): Promise<{ configured: boolean }> {
+    return request('/sources/x/token', { method: 'DELETE' });
   },
 };

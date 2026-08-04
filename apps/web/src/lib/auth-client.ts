@@ -7,10 +7,14 @@
  * the router guard needs a synchronous signal that a session should exist.
  * The API client clears it when a request comes back 401.
  */
+import { organizationClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 
 // The client requires an absolute URL; same-origin keeps the cookie flow.
-export const authClient = createAuthClient({ baseURL: `${window.location.origin}/v1/auth` });
+export const authClient = createAuthClient({
+  baseURL: `${window.location.origin}/v1/auth`,
+  plugins: [organizationClient()],
+});
 
 const LOGGED_IN_MARKER = 'mentions.loggedIn';
 

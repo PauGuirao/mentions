@@ -17,6 +17,7 @@
  * so claiming 'delivered' would lie to the read model.
  */
 import { QUEUES, deliverJobSchema, type DeliverJob } from '@mentions/core/pipeline';
+import { initObservability, withJobEvent } from '@mentions/core/observability';
 import { feedFilterSchema, destinationConfigSchema, type Mention } from '@mentions/core/schemas';
 import { evalFeedFilter } from '@mentions/core/feed-eval';
 import { newId } from '@mentions/core/ids';
@@ -24,6 +25,9 @@ import { getMention } from '@mentions/core/ops/mentions';
 import { sendToDestination, type DestinationConfig } from './destinations';
 
 interface Env {
+  /** Axiom wide-event drain switches on when both are set. */
+  AXIOM_API_KEY?: string;
+  AXIOM_DATASET?: string;
   DB: D1Database;
 }
 
@@ -217,12 +221,21 @@ async function handleJob(env: Env, job: DeliverJob): Promise<'ack' | 'retry'> {
 }
 
 export default {
-  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+  async queue(batch: MessageBatch<unknown>, env: Env, ctx: ExecutionContext): Promise<void> {
     if (batch.queue !== QUEUES.deliver) {
       console.error(`[deliverer] unexpected queue ${batch.queue}, acking batch`);
       batch.ackAll();
       return;
     }
+
+    initObservability('deliverer', env);
+    await withJobEvent({
+      ctx,
+      event: 'queue_batch',
+      fields: { queue: batch.queue, messages: batch.messages.length },
+      fn: async (log) => {
+    let acked = 0;
+    let retried = 0;
 
     for (const message of batch.messages) {
       const parsed = deliverJobSchema.safeParse(message.body);
@@ -235,13 +248,19 @@ export default {
         const verdict = await handleJob(env, parsed.data);
         if (verdict === 'retry') {
           message.retry({ delaySeconds: RETRY_DELAY_SECONDS });
+          retried++;
         } else {
           message.ack();
+          acked++;
         }
       } catch (err) {
         console.error(`[deliverer] job ${parsed.data.mentionMatchId} crashed, retrying`, err);
         message.retry({ delaySeconds: RETRY_DELAY_SECONDS });
+        retried++;
       }
     }
+    log.set({ acked, retried });
+      },
+    });
   },
 } satisfies ExportedHandler<Env>;

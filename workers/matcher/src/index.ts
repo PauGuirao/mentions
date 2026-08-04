@@ -4,11 +4,15 @@
  * matches, and fans newly created matches out to mentions-classify.
  */
 import { buildMatcher, type TermEntry } from '@mentions/core/match';
+import { initObservability, withJobEvent } from '@mentions/core/observability';
 import { listActiveTermsWithSubscribers } from '@mentions/core/ops/keywords';
 import { rawItemsMessageSchema, type ClassifyJob } from '@mentions/core/pipeline';
 import { processRawItems, type MatchPayload } from './process';
 
 interface Env {
+  /** Axiom wide-event drain switches on when both are set. */
+  AXIOM_API_KEY?: string;
+  AXIOM_DATASET?: string;
   DB: D1Database;
   KV: KVNamespace;
   CLASSIFY: Queue<ClassifyJob>;
@@ -44,7 +48,14 @@ async function sendClassifyJobs(env: Env, jobs: ClassifyJob[]): Promise<void> {
 }
 
 export default {
-  async queue(batch, env): Promise<void> {
+  async queue(batch, env, ctx): Promise<void> {
+    initObservability('matcher', env);
+    await withJobEvent({
+      ctx,
+      event: 'queue_batch',
+      fields: { queue: batch.queue, messages: batch.messages.length },
+      fn: async (log) => {
+    let totals = { items: 0, matchedItems: 0, classifyJobs: 0, malformed: 0, retried: 0 };
     // One registry load + matcher build per delivered batch (≤20 messages).
     const match = buildMatcher(await loadTermEntries(env));
 
@@ -57,6 +68,7 @@ export default {
           issues: parsed.error.issues,
         });
         message.ack();
+        totals.malformed++;
         continue;
       }
 
@@ -66,6 +78,9 @@ export default {
           match,
           db: env.DB,
         });
+        totals.items += parsed.data.items.length;
+        totals.matchedItems += matchedItems;
+        totals.classifyJobs += classifyJobs.length;
         if (classifyJobs.length > 0) await sendClassifyJobs(env, classifyJobs);
         if (matchedItems > 0) {
           console.log('[matcher] matched', {
@@ -81,7 +96,11 @@ export default {
           error: String(error),
         });
         message.retry();
+        totals.retried++;
       }
     }
+    log.set(totals);
+      },
+    });
   },
 } satisfies ExportedHandler<Env, unknown>;

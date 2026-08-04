@@ -11,11 +11,15 @@
  * ingest worker. Losing a tick therefore delays data, never loses it.
  */
 import { dayKey, runDailyBilling } from '@mentions/core/ops/billing';
+import { initObservability, withJobEvent } from '@mentions/core/observability';
 import type { FetchJob } from '@mentions/core/pipeline';
 import { PolarClient, resolvePolarServer } from '@mentions/core/polar';
 import type { Source } from '@mentions/core/schemas';
 
 interface Env {
+  /** Axiom wide-event drain switches on when both are set. */
+  AXIOM_API_KEY?: string;
+  AXIOM_DATASET?: string;
   DB: D1Database;
   KV: KVNamespace;
   FETCH_JOBS: Queue<FetchJob>;
@@ -103,7 +107,12 @@ function fnv1a(input: string): number {
 }
 
 export default {
-  async scheduled(controller, env) {
+  async scheduled(controller, env, ctx) {
+    initObservability('scheduler', env);
+    await withJobEvent({
+      ctx,
+      event: 'cron_tick',
+      fn: async (log) => {
     const now = controller.scheduledTime;
     const jobs: FetchJob[] = [];
 
@@ -149,7 +158,10 @@ export default {
     if (jobs.length > 0) {
       console.log(`[scheduler] enqueued ${jobs.length} fetch job(s) (terms=${termRows.length})`);
     }
+    log.set({ fetchJobs: jobs.length, terms: termRows.length });
 
     await flushBilling(env, now);
+      },
+    });
   },
 } satisfies ExportedHandler<Env>;

@@ -23,7 +23,7 @@ interface Env {
   KV: KVNamespace;
 }
 
-const SERVER_INFO = { name: 'mentions-mcp', version: '0.0.1' };
+const SERVER_INFO = { name: 'mentio-mcp', version: '0.0.1' };
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const LATEST_PROTOCOL_VERSION = '2025-06-18';
 
@@ -67,7 +67,7 @@ function unauthorized(): Response {
     status: 401,
     headers: {
       'content-type': 'application/json',
-      'www-authenticate': 'Bearer realm="mentions-mcp"',
+      'www-authenticate': 'Bearer realm="mentio-mcp"',
     },
   });
 }

@@ -26,7 +26,6 @@ import type { PolarClient, PolarEvent } from '../polar';
 export const POOL_PER_KEYWORD = 500;
 export const MENTION_UNIT_SIZE = 1000;
 export const FREE_KEYWORD_LIMIT = 2;
-export const PAID_KEYWORD_LIMIT = 100;
 
 /** Polar event names; the dashboard meters filter on these exact strings. */
 export const EVENT_KEYWORD_DAYS = 'keyword_days';
@@ -66,14 +65,18 @@ async function getOrgBilling(db: D1Database, orgId: string): Promise<OrgBillingR
     .first<OrgBillingRow>();
 }
 
-export function keywordLimitFor(status: BillingStatus): number {
-  return status === 'active' ? PAID_KEYWORD_LIMIT : FREE_KEYWORD_LIMIT;
+/** null = no cap: subscribed orgs pay per keyword, so nothing gates them. */
+export function keywordLimitFor(status: BillingStatus): number | null {
+  return status === 'active' ? null : FREE_KEYWORD_LIMIT;
 }
 
 /** The org's current keyword capacity. The CHECK against it must live in the
  *  same SQL statement as the write (see createKeyword) — a separate
  *  read-then-write races concurrent requests past the limit. */
-export async function getKeywordLimit(args: { db: D1Database; orgId: string }): Promise<number> {
+export async function getKeywordLimit(args: {
+  db: D1Database;
+  orgId: string;
+}): Promise<number | null> {
   const row = await getOrgBilling(args.db, args.orgId);
   return keywordLimitFor(row?.status ?? 'none');
 }

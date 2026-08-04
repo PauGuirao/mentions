@@ -10,6 +10,7 @@
  *              (LLM unusable twice; the pipeline never blocks on the model)
  */
 import { recordBillableMention } from '@mentions/core/ops/billing';
+import { initObservability, withJobEvent } from '@mentions/core/observability';
 import { QUEUES, classifyJobSchema, type DeliverJob } from '@mentions/core/pipeline';
 import type { Classification } from '@mentions/core/schemas';
 import {
@@ -23,6 +24,9 @@ import {
 } from './classify';
 
 interface Env {
+  /** Axiom wide-event drain switches on when both are set. */
+  AXIOM_API_KEY?: string;
+  AXIOM_DATASET?: string;
   DB: D1Database;
   AI: Ai;
   DELIVER: Queue<DeliverJob>;
@@ -152,12 +156,21 @@ async function handleJob(env: Env, job: { mentionMatchId: string; orgId: string 
 }
 
 export default {
-  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+  async queue(batch: MessageBatch<unknown>, env: Env, ctx: ExecutionContext): Promise<void> {
     if (batch.queue !== QUEUES.classify) {
       console.error(`[classifier] unexpected queue ${batch.queue}, acking batch`);
       batch.ackAll();
       return;
     }
+
+    initObservability('classifier', env);
+    await withJobEvent({
+      ctx,
+      event: 'queue_batch',
+      fields: { queue: batch.queue, messages: batch.messages.length },
+      fn: async (log) => {
+    let ok = 0;
+    let failed = 0;
 
     for (const message of batch.messages) {
       const parsed = classifyJobSchema.safeParse(message.body);
@@ -169,12 +182,17 @@ export default {
       try {
         await handleJob(env, parsed.data);
         message.ack();
+        ok++;
       } catch (err) {
         // Infrastructure errors (D1 hiccup, queue send failure): let the
         // queue redeliver; handleJob is idempotent on the state column.
         console.error(`[classifier] job ${parsed.data.mentionMatchId} failed, retrying`, err);
         message.retry();
+        failed++;
       }
     }
+    log.set({ ok, failed });
+      },
+    });
   },
 } satisfies ExportedHandler<Env>;

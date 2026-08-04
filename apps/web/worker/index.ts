@@ -12,7 +12,15 @@ export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/v1' || url.pathname.startsWith('/v1/')) {
-      return env.API.fetch(request);
+      // Buffer the body before crossing the service binding: streaming it
+      // through stalls intermittently (observed as infinite sign-in and
+      // hanging dashboard POSTs). /v1 bodies are small JSON, so buffering
+      // costs nothing.
+      if (request.body === null) {
+        return env.API.fetch(request);
+      }
+      const body = await request.arrayBuffer();
+      return env.API.fetch(new Request(request, { body }));
     }
     return env.ASSETS.fetch(request);
   },

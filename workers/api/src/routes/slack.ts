@@ -49,13 +49,18 @@ function callbackUri(requestUrl: string): string {
 }
 
 /** Where the browser lands after the OAuth dance: the dashboard settings
- *  page on the first trusted origin (dev SPA), else the auth origin. */
+ *  page. BETTER_AUTH_URL is the browser-facing app origin by definition
+ *  (auth cookies ride the dashboard proxy), so it is the right base; the
+ *  first TRUSTED_ORIGINS entry is only a fallback for bare setups. Never
+ *  pick trusted origins first: that list starts with localhost in prod. */
 function settingsUrl(env: Env, result: 'connected' | 'error' | 'cancelled'): string {
   const origin =
+    env.BETTER_AUTH_URL ||
     (env.TRUSTED_ORIGINS ?? '')
       .split(',')
       .map((o) => o.trim())
-      .find((o) => o.length > 0) ?? env.BETTER_AUTH_URL;
+      .find((o) => o.length > 0) ||
+    '';
   return `${origin.replace(/\/$/, '')}/settings?slack=${result}`;
 }
 
@@ -212,6 +217,7 @@ slackRouter.openapi(setNotificationsRoute, async (c) => {
       channelId: body.channelId,
       channelName: body.channelName,
       minRelevance: body.minRelevance,
+      sources: body.sources,
     });
   } catch (err) {
     if (err instanceof SlackNotConnectedError) {

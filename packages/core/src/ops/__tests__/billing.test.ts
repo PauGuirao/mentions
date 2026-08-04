@@ -58,7 +58,7 @@ describe('keyword limits', () => {
     expect(keywordLimitFor('none')).toBe(2);
     expect(keywordLimitFor('canceled')).toBe(2);
     expect(keywordLimitFor('past_due')).toBe(2);
-    expect(keywordLimitFor('active')).toBe(100);
+    expect(keywordLimitFor('active')).toBeNull();
   });
 
   it('reads the org status for the limit (missing row = free)', async () => {
@@ -67,7 +67,7 @@ describe('keyword limits', () => {
     const { db: paidDb } = createDbStub((query) =>
       query.sql.includes('FROM org_billing') ? { first: { status: 'active', polar_subscription_id: 's' } } : {},
     );
-    expect(await getKeywordLimit({ db: paidDb, orgId: 'org_1' })).toBe(100);
+    expect(await getKeywordLimit({ db: paidDb, orgId: 'org_1' })).toBeNull();
   });
 });
 

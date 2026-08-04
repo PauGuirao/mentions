@@ -57,8 +57,9 @@ is Polar summing the period's events.
 9. **Plan gating lives in core ops**, not routes, and the capacity check rides
    IN the write statement (`createKeyword`/unmute guard via `WHERE (SELECT
    COUNT...) < limit`) — a separate read-then-write races concurrent requests
-   past the limit. Free = 2 keywords, active subscription = 100. Routes only
-   translate `KeywordLimitError` → 402.
+   past the limit. Free = 2 keywords; an active subscription is uncapped (pay
+   per use never gates a paying org). Routes only translate
+   `KeywordLimitError` → 402.
 
 Polar setup (dashboard, once per env): one subscription product with two
 metered prices — meter `keyword_days` (Sum over `count`, EUR 0.1667/unit =
@@ -80,6 +81,13 @@ middleware and the OpenAPI spec).
 - API worker: Hono + @hono/zod-openapi; spec generated from code, served at
   /v1/openapi.json. Auth: Bearer API keys, hashed (SHA-256) in D1, KV-cached.
 - Classifier: Workers AI through AI Gateway. Model choice is config, not code.
+- Observability: ONE WIDE EVENT per unit of work (evlog) shipped to the Axiom
+  dataset `mentio`. The api worker uses evlog's Hono middleware (auth tags
+  orgId/authKind onto the event); every queue consumer and the scheduler wrap
+  their handler in `withJobEvent` from `packages/core/src/observability.ts`.
+  Enable-by-secret: AXIOM_API_KEY (ingest-only token) + AXIOM_DATASET var; no
+  secret -> console-only, never breaks. Don't add scattered log lines to
+  handlers — put fields on the wide event (`log.set`) instead.
 - TypeScript strict everywhere; no `as any` (narrowest cast or a real interface).
 - pnpm workspaces. Each worker has its own wrangler.jsonc + `typecheck` script.
 

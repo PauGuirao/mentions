@@ -51,12 +51,13 @@ export async function createKeyword(args: {
     // Capacity check and insert are ONE statement: a separate read-then-write
     // lets two concurrent creates both pass the gate. changes = 0 here can
     // only mean the WHERE guard failed, i.e. the org is at its limit.
+    // null limit (subscribed, pay per keyword) binds an unreachable cap.
     const result = await orm.run(sql`
       INSERT INTO keywords (id, org_id, term, normalized_term, kind, muted, created_at)
       SELECT ${id}, ${orgId}, ${term}, ${normalizeTerm(term)}, ${kind}, 0, ${createdAt}
-      WHERE (SELECT COUNT(*) FROM keywords WHERE org_id = ${orgId} AND muted = 0) < ${limit}`);
+      WHERE (SELECT COUNT(*) FROM keywords WHERE org_id = ${orgId} AND muted = 0) < ${limit ?? Number.MAX_SAFE_INTEGER}`);
     if ((result.meta.changes ?? 0) === 0) {
-      throw new KeywordLimitError(limit);
+      throw new KeywordLimitError(limit ?? Number.MAX_SAFE_INTEGER);
     }
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -157,7 +158,7 @@ export async function setKeywordMuted(args: {
   const result = await orm.run(sql`
     UPDATE keywords SET muted = 0
     WHERE id = ${keywordId} AND org_id = ${orgId} AND muted = 1
-      AND (SELECT COUNT(*) FROM keywords WHERE org_id = ${orgId} AND muted = 0) < ${limit}`);
+      AND (SELECT COUNT(*) FROM keywords WHERE org_id = ${orgId} AND muted = 0) < ${limit ?? Number.MAX_SAFE_INTEGER}`);
   if ((result.meta.changes ?? 0) > 0) {
     await syncKeywordUsage({ db, orgId });
     return true;
@@ -170,7 +171,7 @@ export async function setKeywordMuted(args: {
     .get();
   if (!row) return false;
   if (row.muted === 0) return true; // already active: idempotent success
-  throw new KeywordLimitError(limit);
+  throw new KeywordLimitError(limit ?? Number.MAX_SAFE_INTEGER);
 }
 
 /**

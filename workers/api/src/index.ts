@@ -3,6 +3,8 @@
  * here (invariant); handlers validate, call an op, shape the envelope.
  */
 import { createRoute, z } from '@hono/zod-openapi';
+import { initObservability } from '@mentions/core/observability';
+import { evlog } from 'evlog/hono';
 import { auth } from './auth';
 import { getAuth } from './better-auth';
 import { errorBody } from './errors';
@@ -15,9 +17,18 @@ import { mentionsRouter } from './routes/mentions';
 import { meRouter } from './routes/me';
 import { onboardingRouter } from './routes/onboarding';
 import { registerSlackCallback, slackRouter } from './routes/slack';
+import { sourceTokensRouter } from './routes/source-tokens';
 import { statsRouter } from './routes/stats';
 
 const app = createRouter();
+
+// One wide event per request to Axiom (evlog). Init must run per request:
+// env bindings do not exist at module scope on Workers.
+app.use('*', async (c, next) => {
+  initObservability('api', c.env);
+  await next();
+});
+app.use('*', evlog({ exclude: ['/v1/health', '/v1/openapi.json'] }));
 
 // Auth for everything under /v1 except health, the spec, and /v1/auth/*
 // (all skipped inside the middleware).
@@ -50,6 +61,7 @@ v1.route('/', onboardingRouter);
 v1.route('/', statsRouter);
 v1.route('/', billingRouter);
 v1.route('/', slackRouter);
+v1.route('/', sourceTokensRouter);
 registerPolarWebhook(v1);
 registerSlackCallback(v1);
 
@@ -64,10 +76,11 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
 app.doc('/v1/openapi.json', {
   openapi: '3.0.0',
   info: {
-    title: 'Mentions API',
+    title: 'Mentio API',
     version: '0.0.1',
     description: 'Keyword and brand mention tracking across dev platforms.',
   },
+  servers: [{ url: 'https://api.mentio.dev' }],
 });
 
 app.notFound((c) => c.json(errorBody('not_found', 'Route not found'), 404));

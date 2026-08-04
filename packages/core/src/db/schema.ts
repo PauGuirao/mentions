@@ -9,7 +9,7 @@
  * Deliberately absent: Better Auth's tables (user, session, account,
  * verification from 0003) — Better Auth owns their shape and access.
  */
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text, unique, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const orgs = sqliteTable('orgs', {
   id: text('id').primaryKey(),
@@ -27,6 +27,9 @@ export const orgs = sqliteTable('orgs', {
   useCases: text('use_cases').notNull().default('[]'),
   xAccount: text('x_account'),
   linkedinAccount: text('linkedin_account'),
+  // 0008 Better Auth organization plugin (unique index in the migration)
+  slug: text('slug'),
+  metadata: text('metadata'),
 });
 
 export const apiKeys = sqliteTable(
@@ -182,14 +185,16 @@ export const cursors = sqliteTable(
 export const orgMembers = sqliteTable(
   'org_members',
   {
+    // Surrogate PK required by the Better Auth member model (0008 rebuild).
+    id: text('id').primaryKey(),
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id),
     userId: text('user_id').notNull(),
-    role: text('role', { enum: ['owner', 'member'] }).notNull().default('owner'),
+    role: text('role', { enum: ['owner', 'admin', 'member'] }).notNull().default('owner'),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.orgId, t.userId] }), index('idx_org_members_user').on(t.userId)],
+  (t) => [unique().on(t.orgId, t.userId), index('idx_org_members_user').on(t.userId)],
 );
 
 export const orgBilling = sqliteTable('org_billing', {
@@ -231,6 +236,23 @@ export const billableMentions = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('idx_billable_org_cycle').on(t.orgId, t.cycle)],
+);
+
+// 0009: bring-your-own source credentials (x bearer tokens for now)
+export const orgSourceTokens = sqliteTable(
+  'org_source_tokens',
+  {
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id),
+    source: text('source').notNull(),
+    token: text('token').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.orgId, table.source] }),
+    index('idx_org_source_tokens_source').on(table.source),
+  ],
 );
 
 export const slackInstalls = sqliteTable('slack_installs', {

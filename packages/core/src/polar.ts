@@ -149,14 +149,26 @@ const base64ToBytes = (value: string): Uint8Array<ArrayBuffer> => {
   return bytes;
 };
 
-function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
-  const raw = secret.startsWith('whsec_') ? secret.slice('whsec_'.length) : secret;
-  // Standard Webhooks secrets are base64; fall back to utf8 for raw secrets.
+/**
+ * Candidate HMAC keys for one configured secret. Standard Webhooks says the
+ * part after "whsec_" is base64 and the key is its decoded bytes, but Polar
+ * signs with the raw utf8 bytes of the secret string (their docs wrap the
+ * secret in btoa() before handing it to the standardwebhooks lib). Accepting
+ * every derivation of the same shared secret keeps verification strict
+ * (an attacker without the secret can produce none of them) while working
+ * with both interpretations.
+ */
+function candidateKeys(secret: string): Array<Uint8Array<ArrayBuffer>> {
+  const suffix = secret.startsWith('whsec_') ? secret.slice('whsec_'.length) : secret;
+  const keys: Array<Uint8Array<ArrayBuffer>> = [];
   try {
-    return base64ToBytes(raw);
+    keys.push(base64ToBytes(suffix));
   } catch {
-    return new TextEncoder().encode(raw);
+    // Not base64; the utf8 candidates below cover it.
   }
+  keys.push(new TextEncoder().encode(suffix));
+  keys.push(new TextEncoder().encode(secret));
+  return keys;
 }
 
 /**
@@ -178,16 +190,19 @@ export async function verifyPolarWebhook(args: {
     return false;
   }
 
-  const key = await crypto.subtle.importKey('raw', secretBytes(secret), HMAC_KEY_PARAMS, false, ['sign']);
-  const signedContent = `${headers.id}.${headers.timestamp}.${payload}`;
-  const digest = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signedContent));
-  const expected = btoa(String.fromCharCode(...new Uint8Array(digest)));
-
+  const signedContent = new TextEncoder().encode(`${headers.id}.${headers.timestamp}.${payload}`);
   // Header carries space-separated "v1,<sig>" entries (key rotation).
-  return headers.signature
+  const provided = headers.signature
     .split(' ')
-    .map((part) => (part.startsWith('v1,') ? part.slice('v1,'.length) : part))
-    .some((part) => constantTimeEqual(part, expected));
+    .map((part) => (part.startsWith('v1,') ? part.slice('v1,'.length) : part));
+
+  for (const keyBytes of candidateKeys(secret)) {
+    const key = await crypto.subtle.importKey('raw', keyBytes, HMAC_KEY_PARAMS, false, ['sign']);
+    const digest = await crypto.subtle.sign('HMAC', key, signedContent);
+    const expected = btoa(String.fromCharCode(...new Uint8Array(digest)));
+    if (provided.some((part) => constantTimeEqual(part, expected))) return true;
+  }
+  return false;
 }
 
 function constantTimeEqual(a: string, b: string): boolean {

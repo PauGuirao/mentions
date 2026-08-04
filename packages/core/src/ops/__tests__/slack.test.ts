@@ -104,7 +104,7 @@ describe('getSlackStatus', () => {
     await expect(getSlackStatus({ db, orgId: 'org_1' })).resolves.toEqual({
       connected: true,
       teamName: 'Acme',
-      notifications: { channelId: 'C1', channelName: 'general', minRelevance: 70 },
+      notifications: { channelId: 'C1', channelName: 'general', minRelevance: 70, sources: null },
     });
   });
 

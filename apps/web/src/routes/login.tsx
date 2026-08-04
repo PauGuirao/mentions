@@ -16,8 +16,15 @@ import { hasCredentials } from '@/lib/api';
 import { authClient, markLoggedIn } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/login')({
-  beforeLoad: () => {
-    if (hasCredentials()) throw redirect({ to: '/' });
+  // Invitation links carry a post-login destination; only in-app absolute
+  // paths are honored so the param can never redirect off-origin. The key
+  // stays optional so plain navigations to /login need no search object.
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } =>
+    typeof search['redirect'] === 'string' && search['redirect'].startsWith('/')
+      ? { redirect: search['redirect'] }
+      : {},
+  beforeLoad: ({ search }) => {
+    if (hasCredentials()) throw redirect({ to: search.redirect ?? '/' });
   },
   component: LoginPage,
 });
@@ -49,6 +56,7 @@ function GoogleIcon() {
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { redirect: redirectTo } = Route.useSearch();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -75,9 +83,9 @@ function LoginPage() {
         return;
       }
       markLoggedIn();
-      // Fresh signups go straight to onboarding; the root layout gate also
-      // catches any logged-in user whose workspace was never onboarded.
-      await navigate({ to: mode === 'signup' ? '/onboarding' : '/' });
+      // Invitation round-trips win; otherwise fresh signups go straight to
+      // onboarding, and the root layout gate catches the rest.
+      await navigate({ to: redirectTo ?? (mode === 'signup' ? '/onboarding' : '/') });
     } finally {
       setPending(false);
     }
@@ -90,7 +98,7 @@ function LoginPage() {
     markLoggedIn();
     const { error } = await authClient.signIn.social({
       provider: 'google',
-      callbackURL: '/',
+      callbackURL: redirectTo ?? '/',
     });
     if (error) {
       toast.error(error.message ?? 'Google sign-in failed');
@@ -105,7 +113,7 @@ function LoginPage() {
             <span className="flex size-6 items-center justify-center rounded-md bg-primary font-mono text-sm font-bold text-primary-foreground">
               @
             </span>
-            <span className="font-semibold tracking-tight">Mentions</span>
+            <span className="font-semibold tracking-tight">Mentio</span>
           </div>
           <CardTitle>{mode === 'login' ? 'Sign in' : 'Create your account'}</CardTitle>
           <CardDescription>

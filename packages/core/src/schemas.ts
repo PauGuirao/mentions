@@ -178,6 +178,8 @@ export const slackStatusSchema = z.object({
       channelId: z.string(),
       channelName: z.string(),
       minRelevance: z.number().int().min(0).max(100).nullable(),
+      /** Platforms notified about; null = every source. */
+      sources: z.array(sourceSchema).nullable(),
     })
     .nullable(),
 });
@@ -194,8 +196,23 @@ export const slackNotificationsBodySchema = z.object({
    *  (delivery goes to the id), only the label. */
   channelName: z.string().min(1).max(90),
   minRelevance: z.coerce.number().int().min(0).max(100).optional(),
+  /** Platforms to notify for; omitted or empty = every source. */
+  sources: z.array(sourceSchema).max(SOURCES.length).optional(),
 });
 export type SlackNotificationsBody = z.infer<typeof slackNotificationsBodySchema>;
+
+// ---------------------------------------------------------------------------
+// Bring-your-own source tokens (x bearer for now)
+// ---------------------------------------------------------------------------
+
+export const sourceTokenBodySchema = z.object({
+  /** The raw bearer token; stored server-side, never returned. */
+  token: z.string().min(20).max(500),
+});
+
+export const sourceTokenStatusSchema = z.object({
+  configured: z.boolean(),
+});
 
 export const slackInstallStartResponseSchema = z.object({
   /** Slack authorize URL the client should navigate to. */
@@ -239,7 +256,7 @@ export type Classification = z.infer<typeof classificationSchema>;
 // Users & sessions (human auth; orgs stay the tenant)
 // ---------------------------------------------------------------------------
 
-export const orgRoleSchema = z.enum(['owner', 'member']);
+export const orgRoleSchema = z.enum(['owner', 'admin', 'member']);
 
 /** Identity fields mirrored from Better Auth's user table (the tables are
  *  owned by Better Auth; this shape is what OUR endpoints return). */
@@ -266,6 +283,9 @@ export type OrgSummary = z.infer<typeof orgSummarySchema>;
 export const meResponseSchema = z.object({
   user: userSchema,
   orgs: z.array(orgSummarySchema),
+  /** The workspace this session currently acts on (organization plugin
+   *  setActive, falling back to the signup workspace). */
+  activeOrgId: z.string(),
 });
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,20 @@
 import { createMiddleware } from 'hono/factory';
 import { verifyApiKey } from '@mentions/core/ops/api-keys';
-import { getOrgForUser } from '@mentions/core/ops/org-members';
+import { getOrgForUser, isOrgMember } from '@mentions/core/ops/org-members';
+import type { Context } from 'hono';
 import { getAuth } from './better-auth';
 import { errorBody } from './errors';
 import type { AppEnv } from './types';
+
+/** Tag the request's wide event with tenant identity; never let telemetry
+ *  break auth. */
+function tagEvent(c: Context<AppEnv>, fields: Record<string, unknown>): void {
+  try {
+    c.get('log')?.set(fields);
+  } catch {
+    // Middleware not mounted (tests); the event just goes untagged.
+  }
+}
 
 /** The Polar webhook authenticates via HMAC signature inside its handler,
  *  and the Slack OAuth callback via its single-use state nonce; neither
@@ -32,18 +43,28 @@ export const auth = createMiddleware<AppEnv>(async (c, next) => {
       return c.json(errorBody('unauthorized', 'Invalid API key'), 401);
     }
     c.set('orgId', verified.orgId);
+    tagEvent(c, { orgId: verified.orgId, authKind: 'api_key' });
     return next();
   }
 
   // Humans: Better Auth session (cookie; header pass-through covers plugins).
   const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
   if (session) {
-    const orgId = await getOrgForUser({ db: c.env.DB, userId: session.user.id });
+    // The org plugin's setActive() picks the workspace; validate membership
+    // so a stale pointer (member removed) never grants access. Fallback:
+    // oldest membership (the signup workspace).
+    const active = (session.session as { activeOrganizationId?: string | null }).activeOrganizationId;
+    let orgId: string | null = null;
+    if (active && (await isOrgMember({ db: c.env.DB, userId: session.user.id, orgId: active }))) {
+      orgId = active;
+    }
+    orgId ??= await getOrgForUser({ db: c.env.DB, userId: session.user.id });
     if (!orgId) {
       return c.json(errorBody('unauthorized', 'User has no workspace'), 401);
     }
     c.set('orgId', orgId);
     c.set('userId', session.user.id);
+    tagEvent(c, { orgId, userId: session.user.id, authKind: 'session' });
     return next();
   }
 

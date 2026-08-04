@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Branded origin for API-key/MCP clients. The dashboard does NOT use it:
+  // it proxies /v1/* through app.mentio.dev so session cookies stay
+  // same-origin (which is why BETTER_AUTH_URL points there, not here).
+  "routes": [{ "pattern": "api.mentio.dev", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",
@@ -25,6 +29,7 @@
     "binding": "AI"
   },
   "vars": {
+    "AXIOM_DATASET": "mentio",
     // Public origin auth redirects resolve against; secrets
     // (BETTER_AUTH_SECRET, BETTER_AUTH_API_KEY, GOOGLE_CLIENT_ID/SECRET)
     // go via `wrangler secret put`, never here.

@@ -4,7 +4,7 @@
  * where a user becomes a tenant: every user gets a workspace org through
  * org_members, and org-scoped ops only ever see the orgId.
  */
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { orgMembers, orgs } from '../db/schema';
 import { newId } from '../ids';
@@ -28,10 +28,27 @@ export async function bootstrapOrgForUser(args: {
   const orgName = args.orgName?.trim() || `${email.split('@')[0]}'s workspace`;
   const now = Date.now();
   await orm.batch([
-    orm.insert(orgs).values({ id: orgId, name: orgName, createdAt: now }),
-    orm.insert(orgMembers).values({ orgId, userId, role: 'owner', createdAt: now }),
+    // Slug mirrors the 0008 backfill shape; the org plugin requires one.
+    orm.insert(orgs).values({ id: orgId, name: orgName, slug: `org-${orgId.slice(4, 20)}`, createdAt: now }),
+    orm.insert(orgMembers).values({ id: newId('mem'), orgId, userId, role: 'owner', createdAt: now }),
   ]);
   return { orgId, created: true };
+}
+
+/** Membership check for the auth middleware's active-org resolution: a
+ *  stale activeOrganizationId (member removed) must not grant access. */
+export async function isOrgMember(args: {
+  db: D1Database;
+  userId: string;
+  orgId: string;
+}): Promise<boolean> {
+  const row = await getDb(args.db)
+    .select({ id: orgMembers.id })
+    .from(orgMembers)
+    .where(and(eq(orgMembers.userId, args.userId), eq(orgMembers.orgId, args.orgId)))
+    .limit(1)
+    .get();
+  return row !== undefined;
 }
 
 /** The org a session acts on: oldest membership wins (MVP: one org/user). */

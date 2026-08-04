@@ -1,0 +1,27 @@
+{
+  "display_information": {
+    "name": "Mentio",
+    "description": "Posts relevant brand mentions to a channel you pick.",
+    "background_color": "#18181b"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Mentio",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "https://api.mentio.dev/v1/slack/callback",
+      "https://app.mentio.dev/v1/slack/callback"
+    ],
+    "scopes": {
+      "bot": ["chat:write", "chat:write.public", "channels:read"]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

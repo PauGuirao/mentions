@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bootstrapOrgForUser, getOrgForUser, getUserWithOrgs, listOrgsForUser } from '../org-members';
+import { bootstrapOrgForUser, getOrgForUser, getUserWithOrgs, isOrgMember, listOrgsForUser } from '../org-members';
 import { createTestD1, seedUser } from './d1-sqlite';
 
 describe('bootstrapOrgForUser', () => {
@@ -78,5 +78,35 @@ describe('getUserWithOrgs', () => {
   it('returns null for unknown users', async () => {
     const db = createTestD1();
     await expect(getUserWithOrgs({ db, userId: 'nope' })).resolves.toBeNull();
+  });
+});
+
+describe('isOrgMember', () => {
+  it('is true only for actual memberships (guards stale active-org pointers)', async () => {
+    const db = createTestD1();
+    await seedUser(db, 'u1');
+    await seedUser(db, 'u2');
+    const { orgId } = await bootstrapOrgForUser({ db, userId: 'u1', email: 'u1@example.com' });
+
+    expect(await isOrgMember({ db, userId: 'u1', orgId })).toBe(true);
+    expect(await isOrgMember({ db, userId: 'u2', orgId })).toBe(false);
+    expect(await isOrgMember({ db, userId: 'u1', orgId: 'org_missing' })).toBe(false);
+  });
+});
+
+describe('bootstrapOrgForUser (organization plugin fields)', () => {
+  it('writes a slug and a surrogate member id', async () => {
+    const db = createTestD1();
+    await seedUser(db, 'u1');
+    const { orgId } = await bootstrapOrgForUser({ db, userId: 'u1', email: 'u1@example.com' });
+
+    const org = await db.prepare('SELECT slug FROM orgs WHERE id = ?1').bind(orgId).first<{ slug: string }>();
+    expect(org?.slug).toMatch(/^org-/);
+    const member = await db
+      .prepare('SELECT id, role FROM org_members WHERE org_id = ?1')
+      .bind(orgId)
+      .first<{ id: string; role: string }>();
+    expect(member?.id).toMatch(/^mem_/);
+    expect(member?.role).toBe('owner');
   });
 });

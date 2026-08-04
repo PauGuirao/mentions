@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MentionsRouteImport } from './routes/mentions'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AcceptInvitationInvitationIdRouteImport } from './routes/accept-invitation.$invitationId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,12 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AcceptInvitationInvitationIdRoute =
+  AcceptInvitationInvitationIdRouteImport.update({
+    id: '/accept-invitation/$invitationId',
+    path: '/accept-invitation/$invitationId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByFullPath {
   '/mentions': typeof MentionsRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
+  '/accept-invitation/$invitationId': typeof AcceptInvitationInvitationIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +70,7 @@ export interface FileRoutesByTo {
   '/mentions': typeof MentionsRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
+  '/accept-invitation/$invitationId': typeof AcceptInvitationInvitationIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,13 +80,27 @@ export interface FileRoutesById {
   '/mentions': typeof MentionsRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
+  '/accept-invitation/$invitationId': typeof AcceptInvitationInvitationIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/keywords' | '/login' | '/mentions' | '/onboarding' | '/settings'
+    | '/'
+    | '/keywords'
+    | '/login'
+    | '/mentions'
+    | '/onboarding'
+    | '/settings'
+    | '/accept-invitation/$invitationId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/keywords' | '/login' | '/mentions' | '/onboarding' | '/settings'
+  to:
+    | '/'
+    | '/keywords'
+    | '/login'
+    | '/mentions'
+    | '/onboarding'
+    | '/settings'
+    | '/accept-invitation/$invitationId'
   id:
     | '__root__'
     | '/'
@@ -86,6 +109,7 @@ export interface FileRouteTypes {
     | '/mentions'
     | '/onboarding'
     | '/settings'
+    | '/accept-invitation/$invitationId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,6 +119,7 @@ export interface RootRouteChildren {
   MentionsRoute: typeof MentionsRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
+  AcceptInvitationInvitationIdRoute: typeof AcceptInvitationInvitationIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -141,6 +166,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/accept-invitation/$invitationId': {
+      id: '/accept-invitation/$invitationId'
+      path: '/accept-invitation/$invitationId'
+      fullPath: '/accept-invitation/$invitationId'
+      preLoaderRoute: typeof AcceptInvitationInvitationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -151,6 +183,7 @@ const rootRouteChildren: RootRouteChildren = {
   MentionsRoute: MentionsRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
+  AcceptInvitationInvitationIdRoute: AcceptInvitationInvitationIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

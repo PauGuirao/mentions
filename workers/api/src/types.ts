@@ -1,3 +1,5 @@
+import type { EvlogVariables } from 'evlog/hono';
+
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
@@ -24,6 +26,14 @@ export interface Env {
    *  The Slack app's redirect URL must list <api-origin>/v1/slack/callback. */
   SLACK_CLIENT_ID?: string;
   SLACK_CLIENT_SECRET?: string;
+  /** Auth emails (password reset, signup verification) switch on when set;
+   *  the sending domain must be verified in Resend. */
+  RESEND_API_KEY?: string;
+  /** Defaults to 'Mentio <notifications@mentio.dev>'. */
+  EMAIL_FROM?: string;
+  /** Axiom wide-event drain switches on when both are set. */
+  AXIOM_API_KEY?: string;
+  AXIOM_DATASET?: string;
 }
 
 /** Hono generics: bindings + per-request variables set by the auth middleware.
@@ -31,5 +41,5 @@ export interface Env {
  *  token (humans) rather than an API key (machines). */
 export type AppEnv = {
   Bindings: Env;
-  Variables: { orgId: string; userId?: string };
+  Variables: { orgId: string; userId?: string } & EvlogVariables['Variables'];
 };

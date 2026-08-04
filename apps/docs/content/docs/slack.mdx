@@ -67,10 +67,13 @@ curl -X PUT "$MENTIONS_API_URL/v1/slack/notifications" \
 
 The integration switches on when the API worker has Slack app credentials; without them, Slack endpoints return `503 slack_not_configured` and everything else keeps working.
 
-1. Create an app at [api.slack.com/apps](https://api.slack.com/apps) (From scratch).
-2. Under OAuth and Permissions, add the bot token scopes `chat:write`, `chat:write.public`, and `channels:read`.
-3. Add `https://<your-api-host>/v1/slack/callback` to the app's redirect URLs.
-4. Set the credentials on the API worker:
+1. Create an app at [api.slack.com/apps](https://api.slack.com/apps) with "From a manifest" and
+   paste `workers/api/slack-app-manifest.json` (it declares the bot scopes `chat:write`,
+   `chat:write.public`, `channels:read` and the OAuth redirect URL; adjust the redirect to
+   `https://<your-api-host>/v1/slack/callback` for your deployment).
+2. Activate public distribution (Manage Distribution) so workspaces other than your own can
+   install the app.
+3. Set the credentials from Basic Information on the API worker:
 
 ```bash
 wrangler secret put SLACK_CLIENT_ID
