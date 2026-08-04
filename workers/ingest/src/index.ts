@@ -32,6 +32,11 @@ interface Env {
   RAW_ITEMS: Queue<RawItemsMessage>;
   /** Optional secret; raises GitHub search from 10 to 30 req/min. */
   GITHUB_TOKEN?: string;
+  /** Optional secret (Stack Apps key); raises the Stack Exchange quota from
+   *  300 to 10,000 req/day. Free to register, and the unkeyed 300 is per IP
+   *  — which Workers share with other tenants — so this is effectively
+   *  required to run stackoverflow at an hourly cadence. */
+  STACKOVERFLOW_API_KEY?: string;
   /** Optional secrets (the Reddit app's credentials); until BOTH are set the
    *  reddit adapter defers every poll. */
   REDDIT_CLIENT_ID?: string;
@@ -56,6 +61,8 @@ function adapterAuth(source: Source, env: Env): string | undefined {
   switch (source) {
     case 'github':
       return env.GITHUB_TOKEN;
+    case 'stackoverflow':
+      return env.STACKOVERFLOW_API_KEY;
     case 'reddit':
       return env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET
         ? `${env.REDDIT_CLIENT_ID}:${env.REDDIT_CLIENT_SECRET}`

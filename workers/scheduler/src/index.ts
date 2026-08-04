@@ -61,10 +61,13 @@ async function flushBilling(env: Env, now: number): Promise<void> {
   }
 }
 
-/** Global sources: hackernews every tick, devto every 5 minutes. */
+/** Global sources, both keyless and free (Algolia HN Search, Forem public
+ *  API), so cadence here is purely a LATENCY knob — polling more often costs
+ *  nothing and finds no extra mentions, it just finds them sooner. Set to
+ *  hourly by product decision; drop the numbers to go faster. */
 const GLOBAL_CADENCES = [
-  { source: 'hackernews', cadenceMs: 60_000 },
-  { source: 'devto', cadenceMs: 300_000 },
+  { source: 'hackernews', cadenceMs: 3_600_000 },
+  { source: 'devto', cadenceMs: 3_600_000 },
 ] as const satisfies ReadonlyArray<{ source: Source; cadenceMs: number }>;
 
 /** Per-term sources: cadence expressed in minutes because due-ness is
@@ -75,7 +78,12 @@ const GLOBAL_CADENCES = [
  *  budget (see packages/core/src/sources/x.ts). */
 const PER_TERM_CADENCES = [
   { source: 'github', cadenceMinutes: 5 }, // 300s
-  { source: 'stackoverflow', cadenceMinutes: 1440 }, // 86400s
+  // Stack Exchange quota is 300 req/day/IP unkeyed, 10k with a free key —
+  // and Workers share egress IPs, so the unkeyed 300 is shared with other
+  // tenants. Hourly (~24 req/term/day) needs STACKOVERFLOW_API_KEY on the
+  // ingest worker; without it the adapter still defers safely when quota
+  // runs low, it just goes quiet for the rest of the UTC day.
+  { source: 'stackoverflow', cadenceMinutes: 60 },
   // Reddit rides a paid scrape provider (per successful request), so the
   // cadence is a cost knob: 30 min ~= 1,440 req/term/month, which keeps even
   // a worst-case provider tier well under the per-keyword price.
