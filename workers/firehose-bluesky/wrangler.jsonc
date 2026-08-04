@@ -13,7 +13,13 @@
   // Hourly belt-and-braces: scheduled handler re-starts the firehose DO.
   // Firehose paused (2026-08-03): cron removed so the watchdog cannot revive
   // the stream. Restore ["0 * * * *"] to turn Bluesky back on.
-  "triggers": { "crons": [] },
+  // REQUIRED, not optional. The scheduled handler is the only thing that
+  // revives the FirehoseConsumer DO when its watchdog alarm is lost, and a
+  // lost alarm is silent: the worker stays deployed, /status still answers,
+  // and ingestion simply stops. With crons empty the stream died 2026-07-30
+  // and stayed dead for 5 days. Hourly matches the "revives within the hour"
+  // contract documented in src/index.ts.
+  "triggers": { "crons": ["0 * * * *"] },
   "vars": {
     // Placeholder for local dev only — set the real value with
   },
